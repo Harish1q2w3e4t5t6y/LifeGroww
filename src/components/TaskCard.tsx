@@ -222,7 +222,7 @@ export function TaskCard({
             onSetPriority?.(task.id, NEXT_PRIORITY[task.priority]);
           }}
           className={cn(
-            "transition-opacity",
+            "transition-opacity p-1 sm:p-0.5 shrink-0",
             PRIORITY_ICON[task.priority],
             "opacity-100 hover:brightness-110"
           )}
@@ -244,10 +244,10 @@ export function TaskCard({
             );
           }}
           className={cn(
-            "transition-opacity",
+            "transition-opacity p-1 sm:p-0.5 shrink-0",
             task.status === "in_progress"
               ? "text-orange-500 opacity-100"
-              : "opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-orange-500"
+              : "opacity-100 sm:opacity-0 sm:group-hover:opacity-100 text-muted-foreground hover:text-orange-500"
           )}
           aria-label={
             task.status === "in_progress"
@@ -271,12 +271,12 @@ export function TaskCard({
               onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => e.stopPropagation()}
               className={cn(
-                "transition-opacity flex items-center gap-0.5",
+                "transition-opacity flex items-center gap-0.5 p-1 sm:p-0.5 shrink-0",
                 task.dueDate
                   ? isOverdue
                     ? "opacity-100 text-red-600 dark:text-red-400"
                     : "opacity-100 text-muted-foreground hover:text-foreground"
-                  : "opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground"
+                  : "opacity-100 sm:opacity-0 sm:group-hover:opacity-100 text-muted-foreground hover:text-foreground"
               )}
               aria-label={task.dueDate ? "Edit deadline" : "Set deadline"}
               title={task.dueDate ? `Deadline: ${new Date(task.dueDate).toLocaleString()}` : "Set deadline"}
@@ -346,7 +346,7 @@ export function TaskCard({
             setValue(task.title);
             setEditing(true);
           }}
-          className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity"
+          className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity p-1 sm:p-0.5 shrink-0"
           aria-label="Edit"
           title="Edit"
         >
@@ -360,7 +360,7 @@ export function TaskCard({
             e.stopPropagation();
             onDelete(task.id);
           }}
-          className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
+          className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity p-1 sm:p-0.5 shrink-0"
           aria-label="Delete"
           title="Delete"
         >

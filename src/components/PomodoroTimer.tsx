@@ -225,7 +225,7 @@ export function PomodoroTimer() {
       <div
         className={cn(
           "flex items-center gap-0.5 overflow-hidden transition-all duration-200",
-          "max-w-0 opacity-0 group-hover:max-w-[10rem] group-hover:opacity-100 group-focus-within:max-w-[10rem] group-focus-within:opacity-100"
+          "max-w-[10rem] opacity-100 sm:max-w-0 sm:opacity-0 sm:group-hover:max-w-[10rem] sm:group-hover:opacity-100 sm:group-focus-within:max-w-[10rem] sm:group-focus-within:opacity-100"
         )}
       >
         {!state.running ? (

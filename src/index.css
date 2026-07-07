@@ -149,3 +149,42 @@
   --q4-foreground: 160 45% 80%;
 }
 
+/* ============================================================
+   Responsive: Mobile (<640px)
+   ============================================================ */
+@media (max-width: 639px) {
+  /* Use dynamic viewport height for full-screen layouts */
+  .h-screen {
+    height: 100dvh;
+  }
+
+  /* Prevent any horizontal overflow */
+  html, body, #root {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+
+  /* Minimum touch target for interactive elements */
+  .touch-target {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  /* Compact popovers on mobile */
+  [data-radix-popper-content-wrapper] {
+    max-width: calc(100vw - 1rem) !important;
+  }
+}
+
+/* ============================================================
+   Responsive: Tablet (640px – 1024px)
+   ============================================================ */
+@media (min-width: 640px) and (max-width: 1024px) {
+  .h-screen {
+    height: 100dvh;
+  }
+
+  [data-radix-popper-content-wrapper] {
+    max-width: calc(100vw - 2rem) !important;
+  }
+}

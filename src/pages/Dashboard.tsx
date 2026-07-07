@@ -156,7 +156,7 @@ export default function Dashboard() {
   });
 
   return (
-    <div className={`h-screen w-screen overflow-hidden flex flex-col ${isDark ? "" : "light"}`}
+    <div className={`h-screen w-screen overflow-y-auto lg:overflow-hidden flex flex-col ${isDark ? "" : "light"}`}
       style={{
         background: isDark ? "oklch(0.16 0.005 260)" : "oklch(0.99 0.003 260)",
         color: isDark ? "oklch(0.94 0.005 260)" : "oklch(0.18 0.01 260)",
@@ -168,47 +168,47 @@ export default function Dashboard() {
       } as React.CSSProperties}
     >
       {/* Header */}
-      <header className="h-11 shrink-0 flex items-center gap-3 px-3 border-b border-white/10">
-        <Link to="/" className="h-7 w-7 grid place-items-center rounded-md border border-white/10 hover:bg-white/5" title="Back to Matrix">
+      <header className="h-11 shrink-0 flex items-center gap-2 sm:gap-3 px-2 sm:px-3 border-b border-white/10 overflow-hidden">
+        <Link to="/" className="h-7 w-7 grid place-items-center rounded-md border border-white/10 hover:bg-white/5 shrink-0" title="Back to Matrix">
           <ArrowLeft className="h-3.5 w-3.5" />
         </Link>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 shrink-0">
           <div className="h-6 w-6 rounded-md grid place-items-center" style={{ background: "var(--dashboard-accent)", color: "var(--dashboard-accent-dark)" }}>
             <Check className="h-3.5 w-3.5" strokeWidth={3} />
           </div>
-          <span className="font-semibold tracking-tight">HabitGame</span>
+          <span className="font-semibold tracking-tight hidden sm:inline">HabitGame</span>
         </div>
-        <div className="ml-4 flex items-center gap-1.5">
+        <div className="flex items-center gap-1 shrink-0">
           <select value={year} onChange={(e) => setYear(+e.target.value)}
-            className="h-7 rounded-md bg-white/5 border border-white/10 px-2 text-xs">
+            className="h-7 rounded-md bg-white/5 border border-white/10 px-1 sm:px-2 text-xs outline-none">
             {[today.getFullYear() - 1, today.getFullYear(), today.getFullYear() + 1].map((y) => (
               <option key={y} value={y} className="bg-neutral-900">{y}</option>
             ))}
           </select>
           <select value={month} onChange={(e) => setMonth(+e.target.value)}
-            className="h-7 rounded-md bg-white/5 border border-white/10 px-2 text-xs">
+            className="h-7 rounded-md bg-white/5 border border-white/10 px-1 sm:px-2 text-xs outline-none">
             {MONTHS.map((m, i) => <option key={m} value={i} className="bg-neutral-900">{m}</option>)}
           </select>
         </div>
-        <div className="ml-auto flex items-center gap-1.5">
+        <div className="ml-auto flex items-center gap-1 sm:gap-1.5 shrink-0">
           <SyncStatusIndicator />
-          <span className="h-7 px-2.5 rounded-full inline-flex items-center gap-1.5 text-xs bg-white/5 border border-white/10" style={{ color: "oklch(0.78 0.16 70)" }}>
-            <Flame className="h-3.5 w-3.5" /> {stats.currentStreak}
+          <span className="h-7 px-1.5 sm:px-2.5 rounded-full inline-flex items-center gap-1 text-[11px] sm:text-xs bg-white/5 border border-white/10" style={{ color: "oklch(0.78 0.16 70)" }}>
+            <Flame className="h-3.5 w-3.5" /> <span className="tabular-nums">{stats.currentStreak}</span>
           </span>
-          <span className="h-7 px-2.5 rounded-full inline-flex items-center gap-1.5 text-xs bg-white/5 border border-white/10" style={{ color: "oklch(0.78 0.16 70)" }}>
-            <Zap className="h-3.5 w-3.5" /> {stats.completed * 10}
+          <span className="h-7 px-1.5 sm:px-2.5 rounded-full inline-flex items-center gap-1 text-[11px] sm:text-xs bg-white/5 border border-white/10" style={{ color: "oklch(0.78 0.16 70)" }}>
+            <Zap className="h-3.5 w-3.5" /> <span className="tabular-nums">{stats.completed * 10}</span>
           </span>
-          <button onClick={toggleTheme} className="h-7 w-7 grid place-items-center rounded-md border border-white/10 hover:bg-white/5">
+          <button onClick={toggleTheme} className="h-7 w-7 grid place-items-center rounded-md border border-white/10 hover:bg-white/5 shrink-0">
             {isDark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
           </button>
           
           <Popover>
             <PopoverTrigger asChild>
-              <button className="h-7 w-7 grid place-items-center rounded-md border border-white/10 hover:bg-white/5" title="Dashboard Settings">
+              <button className="h-7 w-7 grid place-items-center rounded-md border border-white/10 hover:bg-white/5 shrink-0" title="Dashboard Settings">
                 <SettingsIcon className="h-3.5 w-3.5" />
               </button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-64 p-3 space-y-4 bg-neutral-950 border border-white/10 text-white rounded-lg shadow-xl">
+            <PopoverContent align="end" className="w-64 p-3 space-y-4 bg-neutral-950 border border-white/10 text-white rounded-lg shadow-xl z-50">
               <div className="text-[11px] font-semibold uppercase tracking-wider text-white/70">Habit Game Settings</div>
               
               {/* Accent Color */}
@@ -271,7 +271,7 @@ export default function Dashboard() {
       </header>
 
       {/* Stats row */}
-      <div className="grid grid-cols-6 shrink-0" style={{ gap: "var(--card-gap)", padding: "var(--card-gap)" }}>
+      <div className="grid grid-cols-3 md:grid-cols-6 shrink-0" style={{ gap: "var(--card-gap)", padding: "var(--card-gap)" }}>
         <Stat label="Goal" value={stats.goal} />
         <Stat label="Completed" value={stats.completed} style={{ color: "var(--dashboard-accent)" }} />
         <Stat label="Left" value={stats.left} />
@@ -282,17 +282,17 @@ export default function Dashboard() {
 
       {/* Main grid */}
       <div
-        className="flex-1 min-h-0 grid grid-cols-12"
+        className="flex-1 min-h-0 grid grid-cols-12 lg:[grid-template-rows:var(--grid-rows)]"
         style={{
-          gridTemplateRows: gridRows,
+          "--grid-rows": gridRows,
           gap: "var(--card-gap)",
           paddingLeft: "var(--card-gap)",
           paddingRight: "var(--card-gap)",
           paddingBottom: "var(--card-gap)",
-        }}
+        } as React.CSSProperties}
       >
         {/* Sidebar */}
-        <div className="col-span-3 lg:col-span-2 row-span-2 rounded-lg border border-white/10 bg-[oklch(0.20_0.006_260)] flex flex-col min-h-0">
+        <div className="col-span-12 lg:col-span-2 row-span-1 lg:row-span-2 rounded-lg border border-white/10 bg-[oklch(0.20_0.006_260)] flex flex-col min-h-[240px] lg:min-h-0">
           <div
             className="text-[10px] uppercase tracking-widest text-white/50 shrink-0"
             style={{
@@ -413,8 +413,8 @@ export default function Dashboard() {
         </div>
 
         {/* Tracker grid */}
-        <Panel className="col-span-9 lg:col-span-7 row-span-1" title={`Tracker · ${MONTHS[month]} ${year}`}>
-          <div className="h-full overflow-auto">
+        <Panel className="col-span-12 lg:col-span-7 row-span-1 min-h-[300px] lg:min-h-0" title={`Tracker · ${MONTHS[month]} ${year}`}>
+          <div className="h-full overflow-auto w-full max-w-full">
             <table className="text-xs border-separate border-spacing-0">
               <thead className="sticky top-0 z-10" style={{ background: "oklch(0.20 0.006 260)" }}>
                 <tr>
@@ -499,8 +499,8 @@ export default function Dashboard() {
         </Panel>
 
         {/* Donut + weekly */}
-        <div className="col-span-12 lg:col-span-3 row-span-1 flex flex-col min-h-0" style={{ gap: "var(--card-gap)" }}>
-          <Panel className="flex-1" title="Overall Progress">
+        <div className="col-span-12 lg:col-span-3 row-span-1 flex flex-col sm:flex-row lg:flex-col min-h-0" style={{ gap: "var(--card-gap)" }}>
+          <Panel className="flex-1 min-h-[120px] sm:min-h-0" title="Overall Progress">
             <div className="h-full flex items-center gap-3" style={{ paddingLeft: "var(--card-padding)", paddingRight: "var(--card-padding)" }}>
               <Donut pct={stats.pct} />
               <div className="flex-1 grid grid-cols-2 gap-1.5 text-xs">
@@ -511,7 +511,7 @@ export default function Dashboard() {
               </div>
             </div>
           </Panel>
-          <Panel className="flex-1" title="Weekly">
+          <Panel className="flex-1 min-h-[120px] sm:min-h-0" title="Weekly">
             <div className="h-full flex items-end justify-around gap-2" style={{ paddingLeft: "calc(var(--card-padding) * 1.3)", paddingRight: "calc(var(--card-padding) * 1.3)", paddingBottom: "var(--card-padding)" }}>
               {stats.weeks.map((w, i) => (
                 <div key={i} className="flex-1 flex flex-col items-center gap-1 h-full justify-end">
@@ -531,8 +531,8 @@ export default function Dashboard() {
         </div>
 
         {/* Daily chart */}
-        <Panel className="col-span-6 lg:col-span-4 row-span-1" title="Daily Progress">
-          <div className="h-full" style={{ padding: "var(--card-gap)" }}>
+        <Panel className="col-span-12 md:col-span-6 lg:col-span-4 row-span-1" title="Daily Progress">
+          <div className="h-full min-h-[180px] lg:min-h-0" style={{ padding: "var(--card-gap)" }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="2 2" stroke="oklch(1 0 0 / 6%)" />
@@ -546,8 +546,8 @@ export default function Dashboard() {
         </Panel>
 
         {/* Analysis */}
-        <Panel className="col-span-6 lg:col-span-4 row-span-1" title="Analysis">
-          <div className="h-full overflow-auto">
+        <Panel className="col-span-12 md:col-span-6 lg:col-span-4 row-span-1" title="Analysis">
+          <div className="h-full min-h-[180px] lg:min-h-0 overflow-auto">
             <table className="w-full text-xs">
               <thead className="sticky top-0" style={{ background: "oklch(0.20 0.006 260)" }}>
                 <tr className="text-white/50 text-[10px] uppercase">
@@ -600,9 +600,9 @@ export default function Dashboard() {
         </Panel>
 
         {/* Wellness + today */}
-        <div className="col-span-12 lg:col-span-2 row-span-1 flex flex-col min-h-0" style={{ gap: "var(--card-gap)" }}>
-          <Panel className="flex-1" title="Wellness">
-            <div className="h-full" style={{ padding: "calc(var(--card-gap) * 0.5)" }}>
+        <div className="col-span-12 lg:col-span-2 row-span-1 flex flex-col sm:flex-row lg:flex-col min-h-0" style={{ gap: "var(--card-gap)" }}>
+          <Panel className="flex-1 min-h-[140px] sm:min-h-0" title="Wellness">
+            <div className="h-full min-h-[120px] sm:min-h-0" style={{ padding: "calc(var(--card-gap) * 0.5)" }}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={wellnessData} margin={{ top: 4, right: 4, left: -30, bottom: 0 }}>
                   <XAxis dataKey="day" tick={{ fontSize: 8, fill: "oklch(0.62 0.01 260)" }} interval={4} />
@@ -614,7 +614,7 @@ export default function Dashboard() {
               </ResponsiveContainer>
             </div>
           </Panel>
-          <Panel className="flex-1" title={`Today · Day ${todayDay ?? "-"}`}>
+          <Panel className="flex-1 min-h-[140px] sm:min-h-0" title={`Today · Day ${todayDay ?? "-"}`}>
             <div className="space-y-2 text-xs h-full overflow-auto" style={{ padding: "var(--card-gap)" }}>
               <div>
                 <div className="text-[10px] text-white/50 mb-1">Mood</div>

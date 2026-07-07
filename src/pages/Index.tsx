@@ -11,7 +11,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { Plus, Check, Moon, Sun, LayoutDashboard, LogOut } from "lucide-react";
+import { Plus, Check, Moon, Sun, LayoutDashboard, LogOut, MoreHorizontal } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -28,6 +28,7 @@ import { AppSettingsButton } from "@/components/AppSettings";
 import { useDeadlineWatcher, useHourlyChime } from "@/hooks/useNotifications";
 import { useAuth } from "@/context/AuthContext";
 import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 
 const bgColor: Record<Quadrant, string> = {
@@ -82,7 +83,7 @@ function Quad({
     <div
       ref={setNodeRef}
       className={cn(
-        "relative flex flex-col h-full overflow-hidden transition-all p-4",
+        "relative flex flex-col h-auto md:h-full min-h-[220px] md:min-h-0 overflow-hidden transition-all p-4",
         bgColor[quadrant],
         isOver && cn("ring-2 ring-inset", ringColor[quadrant])
       )}
@@ -192,48 +193,97 @@ const Index = () => {
 
   return (
     <div className="h-screen flex flex-col bg-background">
-      <header className="flex items-center gap-2 px-4 py-2.5 border-b border-border bg-card/60 backdrop-blur-sm">
-        <div className="h-7 w-7 rounded-md bg-gradient-to-br from-primary to-primary/60 grid place-items-center text-primary-foreground font-bold text-sm">E</div>
-        <h1 className="text-sm font-semibold">Eisenhower Matrix</h1>
-        <div className="ml-auto flex items-center gap-1.5">
+      <header className="flex items-center gap-2 px-3 sm:px-4 py-2 border-b border-border bg-card/60 backdrop-blur-sm">
+        <div className="h-7 w-7 rounded-md bg-gradient-to-br from-primary to-primary/60 grid place-items-center text-primary-foreground font-bold text-sm shrink-0">E</div>
+        <h1 className="text-xs sm:text-sm font-semibold truncate max-w-[100px] sm:max-w-none">Eisenhower</h1>
+        <div className="ml-auto flex items-center gap-1 sm:gap-1.5">
           <SyncStatusIndicator />
           <PomodoroTimer />
-          <SoundSettingsButton />
-          <Link
-            to="/dashboard"
-            className="h-7 w-7 grid place-items-center rounded-md border border-border/60 bg-card/70 text-muted-foreground hover:text-foreground hover:bg-card transition-colors"
-            aria-label="Open habit dashboard"
-            title="Habit Dashboard"
-          >
-            <LayoutDashboard className="h-3.5 w-3.5" />
-          </Link>
+          
           <WorkspaceSwitcher workspace={workspace} onChange={setWorkspace} />
-          <AppSettingsButton showCompleted={showCompleted} setShowCompleted={setShowCompleted} />
+          
           <button
             onClick={toggleTheme}
-            className="h-7 w-7 grid place-items-center rounded-md border border-border/60 bg-card/70 text-muted-foreground hover:text-foreground hover:bg-card transition-colors"
+            className="h-7 w-7 grid place-items-center rounded-md border border-border/60 bg-card/70 text-muted-foreground hover:text-foreground hover:bg-card transition-colors shrink-0"
             aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
             title={theme === "dark" ? "Light mode" : "Dark mode"}
           >
             {theme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
           </button>
-          {user && (
-            <button
-              onClick={logout}
-              className="h-7 w-7 grid place-items-center rounded-md border border-border/60 bg-card/70 text-muted-foreground hover:text-destructive hover:bg-card transition-colors"
-              aria-label="Sign Out"
-              title="Sign Out"
+
+          {/* Desktop/Tablet secondary controls */}
+          <div className="hidden sm:flex items-center gap-1.5">
+            <SoundSettingsButton />
+            <Link
+              to="/dashboard"
+              className="h-7 w-7 grid place-items-center rounded-md border border-border/60 bg-card/70 text-muted-foreground hover:text-foreground hover:bg-card transition-colors"
+              aria-label="Open habit dashboard"
+              title="Habit Dashboard"
             >
-              <LogOut className="h-3.5 w-3.5" />
-            </button>
-          )}
+              <LayoutDashboard className="h-3.5 w-3.5" />
+            </Link>
+            <AppSettingsButton showCompleted={showCompleted} setShowCompleted={setShowCompleted} />
+            {user && (
+              <button
+                onClick={logout}
+                className="h-7 w-7 grid place-items-center rounded-md border border-border/60 bg-card/70 text-muted-foreground hover:text-destructive hover:bg-card transition-colors"
+                aria-label="Sign Out"
+                title="Sign Out"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Mobile dropdown for secondary controls */}
+          <div className="sm:hidden">
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  className="h-7 w-7 grid place-items-center rounded-md border border-border/60 bg-card/70 text-muted-foreground hover:text-foreground hover:bg-card transition-colors shrink-0"
+                  aria-label="More options"
+                >
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-48 p-2 flex flex-col gap-1.5 bg-neutral-950 border border-white/10 text-white rounded-lg shadow-xl z-50">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-white/50 px-2 py-1">More Options</div>
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-white/5 text-xs text-muted-foreground hover:text-white transition-colors">
+                    <span>Sound Alerts</span>
+                    <SoundSettingsButton />
+                  </div>
+                  <Link
+                    to="/dashboard"
+                    className="flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-white/5 text-xs text-muted-foreground hover:text-white transition-colors"
+                  >
+                    <span>Habits Game</span>
+                    <LayoutDashboard className="h-3.5 w-3.5" />
+                  </Link>
+                  <div className="flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-white/5 text-xs text-muted-foreground hover:text-white transition-colors">
+                    <span>Settings</span>
+                    <AppSettingsButton showCompleted={showCompleted} setShowCompleted={setShowCompleted} />
+                  </div>
+                  {user && (
+                    <button
+                      onClick={logout}
+                      className="flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-red-500/10 text-xs text-red-400 hover:text-red-300 transition-colors w-full text-left"
+                    >
+                      <span>Sign Out</span>
+                      <LogOut className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
 
       </header>
 
-      <main className="flex-1 relative overflow-hidden">
+      <main className="flex-1 relative overflow-y-auto md:overflow-hidden">
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-          <div className="grid grid-cols-1 md:grid-cols-2 grid-rows-4 md:grid-rows-2 h-full">
+          <div className="grid grid-cols-1 md:grid-cols-2 md:grid-rows-2 h-auto md:h-full">
             <Quad quadrant="q1" tasks={byQuadrant.q1} onToggle={toggleTask} onDelete={removeTask} onRename={renameTask} onSetStatus={setTaskStatus} onSetDueDate={setTaskDueDate} onSetPriority={setTaskPriority} onAdd={handleAdd} activeId={activeId} />
             <Quad quadrant="q2" tasks={byQuadrant.q2} onToggle={toggleTask} onDelete={removeTask} onRename={renameTask} onSetStatus={setTaskStatus} onSetDueDate={setTaskDueDate} onSetPriority={setTaskPriority} onAdd={handleAdd} activeId={activeId} />
             <Quad quadrant="q3" tasks={byQuadrant.q3} onToggle={toggleTask} onDelete={removeTask} onRename={renameTask} onSetStatus={setTaskStatus} onSetDueDate={setTaskDueDate} onSetPriority={setTaskPriority} onAdd={handleAdd} activeId={activeId} />
