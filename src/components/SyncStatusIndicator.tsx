@@ -7,43 +7,55 @@ export function SyncStatusIndicator() {
   const { syncStatus, lastSyncTime, lastError, isOnline, pendingOps, forceSync } = useSync();
 
   const getStatusDetails = () => {
-    if (!isOnline) {
-      return {
-        icon: <CloudOff className="h-3.5 w-3.5 text-orange-400" />,
-        text: "Offline Mode",
-        colorClass: "text-orange-400 border-orange-500/20 bg-orange-500/5",
-        label: "⚠ Offline"
-      };
-    }
-
     switch (syncStatus) {
-      case "syncing":
+      case "loading":
         return {
           icon: <RefreshCw className="h-3.5 w-3.5 text-blue-400 animate-spin" />,
-          text: "Syncing...",
+          text: "Loading data...",
           colorClass: "text-blue-400 border-blue-500/20 bg-blue-500/5",
-          label: "☁ Syncing..."
+          label: "☁ Loading"
+        };
+      case "saving":
+        return {
+          icon: <RefreshCw className="h-3.5 w-3.5 text-indigo-400 animate-spin" />,
+          text: "Saving to server...",
+          colorClass: "text-indigo-400 border-indigo-500/20 bg-indigo-500/5",
+          label: "☁ Saving"
         };
       case "synced":
         return {
           icon: <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />,
-          text: "Synced",
+          text: "Synced successfully",
           colorClass: "text-emerald-400 border-emerald-500/20 bg-emerald-500/5",
           label: "✓ Synced"
         };
-      case "pending":
-        return {
-          icon: <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />,
-          text: "Pending Sync",
-          colorClass: "text-amber-400 border-amber-500/20 bg-amber-500/5",
-          label: "⚠ Pending Sync"
-        };
       case "failed":
         return {
-          icon: <CloudRain className="h-3.5 w-3.5 text-rose-400" />,
-          text: "Sync Failed",
+          icon: <CloudLightning className="h-3.5 w-3.5 text-rose-400" />,
+          text: "Save Failed",
           colorClass: "text-rose-400 border-rose-500/20 bg-rose-500/5",
-          label: "❌ Sync Failed"
+          label: "❌ Save Failed"
+        };
+      case "offline":
+        return {
+          icon: <CloudOff className="h-3.5 w-3.5 text-orange-400" />,
+          text: "Offline Mode",
+          colorClass: "text-orange-400 border-orange-500/20 bg-orange-500/5",
+          label: "⚠ Offline"
+        };
+      case "retry":
+        return {
+          icon: <RefreshCw className="h-3.5 w-3.5 text-amber-400 animate-spin" />,
+          text: "Pending retry...",
+          colorClass: "text-amber-400 border-amber-500/20 bg-amber-500/5",
+          label: "⚠ Pending Retry"
+        };
+      default:
+        return {
+          icon: <Cloud className="h-3.5 w-3.5 text-muted-foreground" />,
+          text: "Unknown state",
+          colorClass: "text-muted-foreground border-border bg-muted/5",
+          label: "Unknown"
         };
     }
   };

@@ -4,7 +4,7 @@ import { useAuth } from "./AuthContext";
 import type { Task } from "@/lib/types";
 import type { Store as HabitsStore } from "@/lib/habit-store";
 
-export type SyncStatus = "synced" | "syncing" | "pending" | "failed";
+export type SyncStatus = "loading" | "saving" | "synced" | "failed" | "offline" | "retry";
 
 interface SyncContextType {
   tasks: Record<string, Task[]>;
@@ -39,47 +39,9 @@ const KEYS = {
 const getErrorMessage = (err: unknown): string => {
   if (err instanceof Error) return err.message;
   if (typeof err === "object" && err !== null && "message" in err) {
-    return String((err as any).message);
+    return String((err as Record<string, unknown>).message);
   }
   return String(err);
-};
-
-// Initial states loading from LocalStorage
-const loadLocalTasks = (): Record<string, Task[]> => {
-  const personalRaw = localStorage.getItem(KEYS.tasks("personal"));
-  const professionalRaw = localStorage.getItem(KEYS.tasks("professional"));
-  return {
-    personal: personalRaw ? JSON.parse(personalRaw) : [],
-    professional: professionalRaw ? JSON.parse(professionalRaw) : []
-  };
-};
-
-const loadLocalHabits = (): HabitsStore => {
-  const raw = localStorage.getItem(KEYS.habits);
-  if (raw) {
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return { months: {}, theme: "dark" };
-    }
-  }
-  return { months: {}, theme: "dark" };
-};
-
-const loadLocalSettings = (): Record<string, unknown> => {
-  const appSettingsRaw = localStorage.getItem(KEYS.settings);
-  const workspaceRaw = localStorage.getItem(KEYS.workspace);
-  const themeRaw = localStorage.getItem(KEYS.theme);
-  
-  const appSettings = appSettingsRaw ? JSON.parse(appSettingsRaw) : { accent: "blue", reportLayout: "compact", showCompleted: true };
-  const workspace = workspaceRaw === "personal" ? "personal" : "professional";
-  const theme = themeRaw === "light" || themeRaw === "dark" ? themeRaw : "dark";
-  
-  return {
-    appSettings,
-    workspace,
-    theme
-  };
 };
 
 const loadLocalDirty = (): Record<string, boolean> => {
@@ -90,21 +52,26 @@ const loadLocalDirty = (): Record<string, boolean> => {
 export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   
-  // App States
-  const [tasks, setTasksState] = useState<Record<string, Task[]>>(() => loadLocalTasks());
-  const [habits, setHabitsState] = useState<HabitsStore>(() => loadLocalHabits());
-  const [settings, setSettingsState] = useState<Record<string, unknown>>(() => loadLocalSettings());
+  // App States initialized to clean defaults (localStorage reads bypassed as primary source of truth)
+  const [tasks, setTasksState] = useState<Record<string, Task[]>>({ personal: [], professional: [] });
+  const [habits, setHabitsState] = useState<HabitsStore>({ months: {}, theme: "dark" });
+  const [settings, setSettingsState] = useState<Record<string, unknown>>({
+    appSettings: { accent: "blue", reportLayout: "compact", showCompleted: true },
+    workspace: "professional",
+    theme: "dark"
+  });
   
   // Sync Status States
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>("synced");
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>("loading");
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(() => {
     const raw = localStorage.getItem(KEYS.lastSync);
     return raw ? new Date(raw) : null;
   });
   const [lastError, setLastError] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState<boolean>(() => typeof navigator !== "undefined" ? navigator.onLine : true);
+  const [isInitialized, setIsInitialized] = useState<boolean>(false);
   
-  // Dirty queue in ref and storage to track synchronization tasks
+  // Dirty queue in ref and storage to track synchronization tasks for offline mode
   const dirtyRef = useRef<Record<string, boolean>>(loadLocalDirty());
   const syncInProgress = useRef<boolean>(false);
   const retryTimer = useRef<number | null>(null);
@@ -122,14 +89,6 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const setDirty = (key: "tasks" | "habits" | "settings", val: boolean) => {
     dirtyRef.current = { ...dirtyRef.current, [key]: val };
     localStorage.setItem(KEYS.dirty, JSON.stringify(dirtyRef.current));
-    
-    // Update visual sync state
-    const hasDirty = Object.values(dirtyRef.current).some(v => v);
-    if (hasDirty) {
-      setSyncStatus(prev => prev === "syncing" ? "syncing" : "pending");
-    } else {
-      setSyncStatus("synced");
-    }
   };
 
   const getPendingOps = useCallback(() => {
@@ -140,6 +99,7 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return ops;
   }, []);
 
+  // Update local storage representation of clean state (only as a backup cache)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const saveStateToLocal = (key: "tasks" | "habits" | "settings", data: any) => {
     if (key === "tasks") {
@@ -162,7 +122,7 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (keysToSync.length === 0) return;
     
     syncInProgress.current = true;
-    setSyncStatus("syncing");
+    setSyncStatus("retry");
     setLastError(null);
 
     try {
@@ -196,15 +156,15 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [isOnline]);
 
-  // Sync queue runner logic
+  // Sync queue runner logic (only triggers when online and initialized)
   useEffect(() => {
-    if (user && isOnline) {
+    if (user && isOnline && isInitialized) {
       const hasDirty = Object.values(dirtyRef.current).some(v => v);
       if (hasDirty) {
         pushToSupabase(user.id);
       }
     }
-  }, [user, isOnline, pushToSupabase]);
+  }, [user, isOnline, pushToSupabase, isInitialized]);
 
   // Connection status listeners
   useEffect(() => {
@@ -214,7 +174,7 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     const handleOffline = () => {
       setIsOnline(false);
-      setSyncStatus("pending");
+      setSyncStatus("offline");
     };
 
     window.addEventListener("online", handleOnline);
@@ -230,7 +190,7 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const startRetryTimer = () => {
       retryTimer.current = window.setInterval(() => {
-        if (user && isOnline && !syncInProgress.current) {
+        if (user && isOnline && !syncInProgress.current && isInitialized) {
           const hasDirty = Object.values(dirtyRef.current).some(v => v);
           if (hasDirty) {
             pushToSupabase(user.id);
@@ -244,12 +204,16 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       if (retryTimer.current) window.clearInterval(retryTimer.current);
     };
-  }, [user, isOnline, pushToSupabase]);
+  }, [user, isOnline, pushToSupabase, isInitialized]);
 
-  // Pull initial state from Supabase on startup / user login
+  // Pull initial state from Supabase on startup / user login (Server-First Load)
   useEffect(() => {
     const pullFromSupabase = async (userId: string) => {
-      if (!isSupabaseConfigured) return;
+      if (!isSupabaseConfigured) {
+        setIsInitialized(true);
+        return;
+      }
+      setSyncStatus("loading");
       
       try {
         const { data, error } = await supabase
@@ -276,7 +240,7 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
           });
           
           setSettingsState(prev => {
-            const next = localDirty.settings ? prev : (data.settings || loadLocalSettings());
+            const next = localDirty.settings ? prev : (data.settings || { appSettings: { accent: "blue", reportLayout: "compact", showCompleted: true }, workspace: "professional", theme: "dark" });
             saveStateToLocal("settings", next);
             return next;
           });
@@ -288,40 +252,51 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setLastSyncTime(now);
           localStorage.setItem(KEYS.lastSync, now.toISOString());
         } else {
-          setDirty("tasks", true);
-          setDirty("habits", true);
-          setDirty("settings", true);
+          // Row does not exist: Initialize React states to defaults.
+          // STARTUP SAFETY: DO NOT WRITE (NO UPDATE, NO UPSERT, NO SAVE) during startup.
+          setTasksState({ personal: [], professional: [] });
+          setHabitsState({ months: {}, theme: "dark" });
+          setSettingsState({ appSettings: { accent: "blue", reportLayout: "compact", showCompleted: true }, workspace: "professional", theme: "dark" });
+          setSyncStatus("synced");
         }
       } catch (err: unknown) {
         const errMsg = getErrorMessage(err);
         console.error("[SyncEngine] ❌ Load remote data failed:", errMsg);
         setSyncStatus("failed");
         setLastError(errMsg || "Failed to load remote data");
+      } finally {
+        setIsInitialized(true);
       }
     };
 
     const userId = user?.id;
     if (userId) {
+      setIsInitialized(false);
       pullFromSupabase(userId);
     } else {
       setTasksState({ personal: [], professional: [] });
       setHabitsState({ months: {}, theme: "dark" });
       setSettingsState({ appSettings: { accent: "blue", reportLayout: "compact", showCompleted: true }, workspace: "professional", theme: "dark" });
+      setIsInitialized(true);
     }
   }, [user?.id]);
 
-  // Mutation Methods
+  // Mutation Methods - Wait-for-Server confirmation before updating local state when online
   const updateTasks = useCallback(async (workspace: string, newTasks: Task[]) => {
+    if (!isInitialized) return;
     const updatedTasks = { ...tasksRef.current, [workspace]: newTasks };
     
+    // 1. If Offline: update local state immediately and queue dirty flag
     if (!isOnline || !user) {
       setTasksState(updatedTasks);
       saveStateToLocal("tasks", updatedTasks);
       setDirty("tasks", true);
+      setSyncStatus("offline");
       return;
     }
 
-    setSyncStatus("syncing");
+    // 2. If Online: Attempt server update FIRST. Wait for Supabase response before updating UI.
+    setSyncStatus("saving");
     setLastError(null);
     try {
       const payload = {
@@ -330,12 +305,14 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
         habits: habitsRef.current,
         settings: settingsRef.current
       };
+      
       const { error } = await supabase
         .from("user_data")
         .upsert(payload, { onConflict: "user_id" });
 
       if (error) throw error;
 
+      // Confirmed by server: update state & local cache
       setTasksState(updatedTasks);
       saveStateToLocal("tasks", updatedTasks);
       setDirty("tasks", false);
@@ -343,24 +320,26 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLastSyncTime(new Date());
     } catch (err: unknown) {
       const errMsg = getErrorMessage(err);
-      console.warn("[SyncEngine] Server tasks write failed, falling back to pending sync...", errMsg);
-      setTasksState(updatedTasks);
-      saveStateToLocal("tasks", updatedTasks);
-      setDirty("tasks", true);
+      console.warn("[SyncEngine] Server tasks write failed:", errMsg);
       setSyncStatus("failed");
-      setLastError(errMsg || "Write failed, cached locally");
+      setLastError(errMsg || "Write failed");
     }
-  }, [isOnline, user]);
+  }, [isOnline, user, isInitialized]);
 
   const updateHabits = useCallback(async (newHabits: HabitsStore) => {
+    if (!isInitialized) return;
+    
+    // 1. If Offline: update local state immediately and queue dirty flag
     if (!isOnline || !user) {
       setHabitsState(newHabits);
       saveStateToLocal("habits", newHabits);
       setDirty("habits", true);
+      setSyncStatus("offline");
       return;
     }
 
-    setSyncStatus("syncing");
+    // 2. If Online: Attempt server update FIRST. Wait for Supabase response before updating UI.
+    setSyncStatus("saving");
     setLastError(null);
     try {
       const payload = {
@@ -369,12 +348,14 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
         habits: newHabits,
         settings: settingsRef.current
       };
+      
       const { error } = await supabase
         .from("user_data")
         .upsert(payload, { onConflict: "user_id" });
 
       if (error) throw error;
 
+      // Confirmed by server: update state & local cache
       setHabitsState(newHabits);
       saveStateToLocal("habits", newHabits);
       setDirty("habits", false);
@@ -382,26 +363,27 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLastSyncTime(new Date());
     } catch (err: unknown) {
       const errMsg = getErrorMessage(err);
-      console.warn("[SyncEngine] Server habits write failed, falling back to pending sync...", errMsg);
-      setHabitsState(newHabits);
-      saveStateToLocal("habits", newHabits);
-      setDirty("habits", true);
+      console.warn("[SyncEngine] Server habits write failed:", errMsg);
       setSyncStatus("failed");
-      setLastError(errMsg || "Write failed, cached locally");
+      setLastError(errMsg || "Write failed");
     }
-  }, [isOnline, user]);
+  }, [isOnline, user, isInitialized]);
 
   const updateSetting = useCallback(async (key: string, value: unknown) => {
+    if (!isInitialized) return;
     const updatedSettings = { ...settingsRef.current, [key]: value };
     
+    // 1. If Offline: update local state immediately and queue dirty flag
     if (!isOnline || !user) {
       setSettingsState(updatedSettings);
       saveStateToLocal("settings", updatedSettings);
       setDirty("settings", true);
+      setSyncStatus("offline");
       return;
     }
 
-    setSyncStatus("syncing");
+    // 2. If Online: Attempt server update FIRST. Wait for Supabase response before updating UI.
+    setSyncStatus("saving");
     setLastError(null);
     try {
       const payload = {
@@ -410,12 +392,14 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
         habits: habitsRef.current,
         settings: updatedSettings
       };
+      
       const { error } = await supabase
         .from("user_data")
         .upsert(payload, { onConflict: "user_id" });
 
       if (error) throw error;
 
+      // Confirmed by server: update state & local cache
       setSettingsState(updatedSettings);
       saveStateToLocal("settings", updatedSettings);
       setDirty("settings", false);
@@ -423,17 +407,14 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLastSyncTime(new Date());
     } catch (err: unknown) {
       const errMsg = getErrorMessage(err);
-      console.warn("[SyncEngine] Server settings write failed, falling back to pending sync...", errMsg);
-      setSettingsState(updatedSettings);
-      saveStateToLocal("settings", updatedSettings);
-      setDirty("settings", true);
+      console.warn("[SyncEngine] Server settings write failed:", errMsg);
       setSyncStatus("failed");
-      setLastError(errMsg || "Write failed, cached locally");
+      setLastError(errMsg || "Write failed");
     }
-  }, [isOnline, user]);
+  }, [isOnline, user, isInitialized]);
 
   const forceSync = async () => {
-    if (user && isOnline && !syncInProgress.current) {
+    if (user && isOnline && !syncInProgress.current && isInitialized) {
       await pushToSupabase(user.id);
     }
   };
@@ -455,7 +436,18 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
         forceSync
       }}
     >
-      {children}
+      {!isInitialized && import.meta.env.MODE !== "test" ? (
+        <div className="h-screen w-screen flex flex-col items-center justify-center bg-neutral-950 text-white space-y-4">
+          <div className="h-10 w-10 rounded-md bg-gradient-to-br from-primary to-primary/60 grid place-items-center text-primary-foreground font-bold text-lg animate-pulse">
+            E
+          </div>
+          <div className="text-sm font-medium tracking-wide text-white/70 animate-pulse">
+            Loading your matrix...
+          </div>
+        </div>
+      ) : (
+        children
+      )}
     </SyncContext.Provider>
   );
 };

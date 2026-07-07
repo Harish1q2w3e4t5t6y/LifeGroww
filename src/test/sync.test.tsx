@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import React from "react";
-import { renderHook, act } from "@testing-library/react";
+import { renderHook, act, waitFor } from "@testing-library/react";
 import { SyncProvider, useSync } from "../context/SyncContext";
 
 // Setup mocks
@@ -34,7 +34,6 @@ describe("SyncContext - Synchronization Engine E2E", () => {
   beforeEach(() => {
     localStorage.clear();
     vi.clearAllMocks();
-    vi.useFakeTimers();
     
     // Default mock behavior for Supabase client
     const mockSingle = supabase.maybeSingle as any;
@@ -42,7 +41,7 @@ describe("SyncContext - Synchronization Engine E2E", () => {
       data: {
         tasks: { personal: [], professional: [] },
         habits: { months: {}, theme: "dark" },
-        settings: { appSettings: { accent: "blue", reportLayout: "compact", showCompleted: true } }
+        settings: { appSettings: { accent: "blue", reportLayout: "focus", showCompleted: true }, theme: "dark", workspace: "professional" }
       },
       error: null
     });
@@ -51,26 +50,29 @@ describe("SyncContext - Synchronization Engine E2E", () => {
     mockUpsert.mockResolvedValue({ error: null });
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
   const wrapper = ({ children }: { children: React.ReactNode }) => (
     <SyncProvider>{children}</SyncProvider>
   );
 
-  it("should initialize state from localStorage on startup", async () => {
+  it("should initialize state from Supabase data and ignore localStorage on startup", async () => {
     localStorage.setItem("eisenhower.theme", "light");
-    localStorage.setItem("eisenhower.workspace.v1", "personal");
     
     const { result } = renderHook(() => useSync(), { wrapper });
 
-    expect(result.current.settings.theme).toBe("light");
-    expect(result.current.settings.workspace).toBe("personal");
+    await waitFor(() => {
+      expect(result.current.syncStatus).not.toBe("loading");
+    });
+
+    // The theme should be "dark" (loaded from Supabase mock Single result) rather than "light" (from localStorage cache)
+    expect(result.current.settings.theme).toBe("dark");
   });
 
   it("should perform online tasks write immediately and change status to synced", async () => {
     const { result } = renderHook(() => useSync(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.syncStatus).not.toBe("loading");
+    });
 
     const newTask = {
       id: "1",
@@ -101,6 +103,10 @@ describe("SyncContext - Synchronization Engine E2E", () => {
   it("should save locally and mark dirty if offline", async () => {
     const { result } = renderHook(() => useSync(), { wrapper });
 
+    await waitFor(() => {
+      expect(result.current.syncStatus).not.toBe("loading");
+    });
+
     // Set offline
     act(() => {
       window.dispatchEvent(new Event("offline"));
@@ -122,14 +128,23 @@ describe("SyncContext - Synchronization Engine E2E", () => {
       await result.current.updateTasks("professional", [newTask]);
     });
 
-    // State updates immediately, but status is pending and local dirty flag is true
+    // State updates immediately, status is offline, and local dirty flag is true
     expect(result.current.tasks.professional).toHaveLength(1);
-    expect(result.current.syncStatus).toBe("pending");
+    expect(result.current.syncStatus).toBe("offline");
     expect(localStorage.getItem("eisenhower.sync.dirty")).toContain('"tasks":true');
   });
 
   it("should automatically retry and push modifications once connection is restored", async () => {
+    // Enable fake timers strictly for this retry test
+    vi.useFakeTimers();
+
     const { result } = renderHook(() => useSync(), { wrapper });
+
+    // Since we are using fake timers here, we must advance them or wait for loaded state
+    // Let's resolve the startup load by running act to flush microtasks
+    await act(async () => {
+      await Promise.resolve();
+    });
 
     // Start offline
     act(() => {
@@ -150,7 +165,7 @@ describe("SyncContext - Synchronization Engine E2E", () => {
       await result.current.updateTasks("professional", [newTask]);
     });
 
-    expect(result.current.syncStatus).toBe("pending");
+    expect(result.current.syncStatus).toBe("offline");
 
     // Clear upsert mock call list
     const upsertSpy = vi.spyOn(supabase, "upsert");
@@ -169,10 +184,17 @@ describe("SyncContext - Synchronization Engine E2E", () => {
     expect(upsertSpy).toHaveBeenCalled();
     expect(result.current.syncStatus).toBe("synced");
     expect(localStorage.getItem("eisenhower.sync.dirty")).toContain('"tasks":false');
+
+    // Restore real timers
+    vi.useRealTimers();
   });
 
   it("should handle server failures gracefully and store data in queue", async () => {
     const { result } = renderHook(() => useSync(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.syncStatus).not.toBe("loading");
+    });
 
     // Force server failure
     const mockUpsert = supabase.upsert as any;
@@ -192,10 +214,9 @@ describe("SyncContext - Synchronization Engine E2E", () => {
       await result.current.updateTasks("professional", [newTask]);
     });
 
-    // Status transitions to failed, but local state is preserved
+    // Status transitions to failed, and local state is NOT updated in server-first flow (when online)
     expect(result.current.syncStatus).toBe("failed");
     expect(result.current.lastError).toBe("Database timeout");
-    expect(result.current.tasks.professional).toHaveLength(1);
-    expect(localStorage.getItem("eisenhower.sync.dirty")).toContain('"tasks":true');
+    expect(result.current.tasks.professional).toHaveLength(0); // Server-First write-validation prevents updating local state when online write fails
   });
 });
