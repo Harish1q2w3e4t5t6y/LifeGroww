@@ -1,0 +1,211 @@
+{
+  "personal": [
+    {
+      "id": "5f2b5248-111e-4ea8-8129-27ac885902d8",
+      "title": "Buy weekly groceries & meal prep",
+      "description": "Stock up on fresh vegetables, chicken breast, eggs, and Greek yogurt for healthy meals.",
+      "status": "pending",
+      "priority": "medium",
+      "quadrant": "q1",
+      "completed": false,
+      "createdAt": "2026-07-07T13:05:51.788Z",
+      "dueDate": "2026-07-08T18:00:00.000Z"
+    },
+    {
+      "id": "f29b7145-212d-4cc8-8319-27ab885902d9",
+      "title": "Fix leaking kitchen faucet",
+      "description": "Leaking from base. Need to replace the rubber washer or call landlord if it persists.",
+      "status": "pending",
+      "priority": "high",
+      "quadrant": "q1",
+      "completed": false,
+      "createdAt": "2026-07-07T13:08:12.122Z",
+      "dueDate": "2026-07-07T21:00:00.000Z"
+    },
+    {
+      "id": "e8029e49-42b0-4785-b55d-3d7e5daf73fd",
+      "title": "Read 5 chapters of Atomic Habits",
+      "description": "Read chapters 12-16 to complete the Section on Making it Easy.",
+      "status": "pending",
+      "priority": "low",
+      "quadrant": "q2",
+      "completed": false,
+      "createdAt": "2026-07-07T13:05:54.430Z",
+      "dueDate": "2026-07-12T22:00:00.000Z"
+    },
+    {
+      "id": "d109f2c3-4211-4475-b44d-3d7e5daf73ff",
+      "title": "Book annual dental cleaning & checkup",
+      "description": "Call Dr. Smith's office to schedule standard cleaning.",
+      "status": "pending",
+      "priority": "medium",
+      "quadrant": "q2",
+      "completed": false,
+      "createdAt": "2026-07-07T13:10:00.000Z",
+      "dueDate": "2026-07-15T12:00:00.000Z"
+    },
+    {
+      "id": "a93bc73d-9f22-4a00-ab89-4458f2da673a",
+      "title": "Review personal monthly savings goals & budget",
+      "description": "Allocate money to savings, investment portfolios, and review subscription plans.",
+      "status": "done",
+      "priority": "high",
+      "quadrant": "q2",
+      "completed": true,
+      "createdAt": "2026-07-01T09:00:00.000Z",
+      "dueDate": "2026-07-05T23:59:59.000Z"
+    },
+    {
+      "id": "c83fe72b-8a21-4f11-9ab3-26ac885902d1",
+      "title": "Pick up package from post office",
+      "description": "Amazon delivery failed. Package stored at local branch. Pickup code: AMZ-9821.",
+      "status": "pending",
+      "priority": "low",
+      "quadrant": "q3",
+      "completed": false,
+      "createdAt": "2026-07-07T13:15:30.000Z",
+      "dueDate": "2026-07-09T17:00:00.000Z"
+    },
+    {
+      "id": "902d3ee8-12c0-48e2-b521-12c82dae3341",
+      "title": "Reply to RSVP for cousin's birthday dinner",
+      "description": "Let them know if attending the event on Saturday.",
+      "status": "done",
+      "priority": "low",
+      "quadrant": "q3",
+      "completed": true,
+      "createdAt": "2026-07-06T10:00:00.000Z",
+      "dueDate": "2026-07-07T18:00:00.000Z"
+    },
+    {
+      "id": "e43bd8ae-689c-4dbc-88ec-1d8e2de5e4af",
+      "title": "Browse holiday destinations for winter trip",
+      "description": "Just looking around. No rush.",
+      "status": "pending",
+      "priority": "low",
+      "quadrant": "q4",
+      "completed": false,
+      "createdAt": "2026-07-07T13:04:14.901Z"
+    },
+    {
+      "id": "9e2c62c3-4311-482e-b69d-3403f975c889",
+      "title": "Clean the garage and organize tools",
+      "description": "Sweep leaves out, group tools into storage bins.",
+      "status": "pending",
+      "priority": "low",
+      "quadrant": "q4",
+      "completed": false,
+      "createdAt": "2026-07-07T13:11:45.000Z"
+    }
+  ],
+  "professional": [
+    {
+      "id": "bbef5e23-f12c-45ef-a700-71a443116457",
+      "title": "Resolve production API authentication error",
+      "description": "Users reporting 502 Bad Gateway on token refreshes. Investigate server logs immediately.",
+      "status": "in_progress",
+      "priority": "high",
+      "quadrant": "q1",
+      "completed": false,
+      "createdAt": "2026-07-07T13:04:10.464Z",
+      "dueDate": "2026-07-07T20:00:00.000Z"
+    },
+    {
+      "id": "7fa1239c-c902-4ab1-893d-68ac8812cde4",
+      "title": "Prepare Q3 product roadmap slides",
+      "description": "Draft slides outlining quarterly targets, engineering milestones, and resource planning.",
+      "status": "pending",
+      "priority": "high",
+      "quadrant": "q1",
+      "completed": false,
+      "createdAt": "2026-07-07T13:06:00.000Z",
+      "dueDate": "2026-07-08T15:00:00.000Z"
+    },
+    {
+      "id": "ba576ee9-e779-4a11-9044-2639dcab206b",
+      "title": "Refactor user settings context API",
+      "description": "De-duplicate context state logic to improve dashboard re-renders and settings saving reliability.",
+      "status": "pending",
+      "priority": "medium",
+      "quadrant": "q2",
+      "completed": false,
+      "createdAt": "2026-07-07T13:04:39.495Z",
+      "dueDate": "2026-07-10T18:00:00.000Z"
+    },
+    {
+      "id": "9e26c367-10d1-480e-b69d-3403f975c788",
+      "title": "Review PR #412: Database migrations and RLS policies",
+      "description": "Double check row-level security logic for the user_data table. Ensure user_id validation is correct.",
+      "status": "done",
+      "priority": "medium",
+      "quadrant": "q2",
+      "completed": true,
+      "createdAt": "2026-07-07T13:04:13.189Z",
+      "dueDate": "2026-07-07T17:00:00.000Z"
+    },
+    {
+      "id": "150fe329-1dcf-4a3b-b652-b65c9e880a5e",
+      "title": "Update README setup instructions for new hires",
+      "description": "Add instructions for local Supabase configuration, environment variables, and Docker setup.",
+      "status": "done",
+      "priority": "low",
+      "quadrant": "q2",
+      "completed": true,
+      "createdAt": "2026-07-07T12:51:29.697Z",
+      "dueDate": "2026-07-07T16:00:00.000Z"
+    },
+    {
+      "id": "01c9ab22-3cd2-4ee1-a901-b2ac88590111",
+      "title": "Conduct security audit for third-party npm packages",
+      "description": "Run npm audit. Update packages with critical or high severity alerts.",
+      "status": "pending",
+      "priority": "medium",
+      "quadrant": "q2",
+      "completed": false,
+      "createdAt": "2026-07-07T13:12:00.000Z",
+      "dueDate": "2026-07-14T17:00:00.000Z"
+    },
+    {
+      "id": "ac3913ef-25aa-41bb-bc63-91d6034743ae",
+      "title": "Answer design team's questions about asset exports",
+      "description": "Send links to the Figma export files and specify desired image extensions for UI icons.",
+      "status": "pending",
+      "priority": "low",
+      "quadrant": "q3",
+      "completed": false,
+      "createdAt": "2026-07-07T13:04:16.616Z",
+      "dueDate": "2026-07-03T13:04:00.000Z"
+    },
+    {
+      "id": "f8a0029b-819a-4c22-bcf3-68bc8812a101",
+      "title": "Respond to Slack thread regarding team lunch logistics",
+      "description": "Cast vote on lunch venue and timing.",
+      "status": "pending",
+      "priority": "low",
+      "quadrant": "q3",
+      "completed": false,
+      "createdAt": "2026-07-07T13:14:00.000Z",
+      "dueDate": "2026-07-08T12:00:00.000Z"
+    },
+    {
+      "id": "c19bc73d-8e22-4a00-ab89-4458f2da6739",
+      "title": "Clear out old email subscriptions & spam inbox",
+      "description": "Unsubscribe from newsletters not read in the last 3 months.",
+      "status": "done",
+      "priority": "low",
+      "quadrant": "q4",
+      "completed": true,
+      "createdAt": "2026-07-06T09:00:00.000Z"
+    },
+    {
+      "id": "2e029c48-289c-4dbb-88ec-1d8e2de5e422",
+      "title": "Organize local development files and folders",
+      "description": "Archive completed project folders to external drive, clear Downloads folder.",
+      "status": "pending",
+      "priority": "low",
+      "quadrant": "q4",
+      "completed": false,
+      "createdAt": "2026-07-07T13:07:30.000Z"
+    }
+  ]
+}

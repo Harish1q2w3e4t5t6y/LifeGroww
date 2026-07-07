@@ -1,40 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import type { Task, Quadrant } from "@/lib/types";
 import type { WorkspaceId } from "@/hooks/useWorkspace";
-import { fetchTasks, saveTasks } from "@/lib/db";
+import { useSync } from "@/context/SyncContext";
 
-const BASE_KEY = "eisenhower.tasks.v1";
-const LEGACY_KEY = "eisenhower.tasks.v1"; // pre-workspace single key
 const QUADRANTS: Quadrant[] = ["q1", "q2", "q3", "q4"];
-
-const keyFor = (w: WorkspaceId) => `${BASE_KEY}:${w}`;
-
-function load(w: WorkspaceId): Task[] {
-  try {
-    let raw = localStorage.getItem(keyFor(w));
-    // Migrate legacy single-store to "professional" workspace.
-    if (!raw && w === "professional") {
-      const legacy = localStorage.getItem(LEGACY_KEY);
-      if (legacy && legacy !== "[]") {
-        raw = legacy;
-        localStorage.setItem(keyFor(w), legacy);
-      }
-    }
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as Task[];
-    return parsed.map((t) => ({
-      ...t,
-      status: t.status ?? (t.completed ? "done" : "pending"),
-      priority: t.priority ?? "low",
-    }));
-  } catch {
-    return [];
-  }
-}
+const EMPTY_TASKS: Task[] = [];
 
 // Order per quadrant: overdue-active (oldest deadline first), then remaining active
 // (manual order), then completed (manual order).
-function normalize(tasks: Task[]): Task[] {
+function normalize(tasks: Task[], _tick?: number): Task[] {
   const now = Date.now();
   const out: Task[] = [];
   for (const q of QUADRANTS) {
@@ -55,162 +29,117 @@ function normalize(tasks: Task[]): Task[] {
 }
 
 export function useTasks(workspace: WorkspaceId = "professional") {
-  const [tasks, setTasks] = useState<Task[]>(() => normalize(load(workspace)));
-  const workspaceRef = useRef(workspace);
-  // Guard: don't write local state back to Supabase until after we've loaded remote.
-  const isSynced = useRef(false);
+  const { tasks: allTasks, updateTasks } = useSync();
+  const [tick, setTick] = useState(0);
 
-  // Swap task list when workspace changes.
-  useEffect(() => {
-    if (workspaceRef.current === workspace) return;
-    workspaceRef.current = workspace;
-    isSynced.current = false;
-    setTasks(normalize(load(workspace)));
-  }, [workspace]);
-
-  // Fetch from Supabase on mount / workspace change, override local state.
-  useEffect(() => {
-    isSynced.current = false;
-    console.log(`[useTasks] Fetching tasks for workspace: ${workspace}`);
-    fetchTasks().then((remote) => {
-      if (remote && Array.isArray(remote[workspace])) {
-        const remoteTasks = (remote[workspace] as Task[]).map((t) => ({
-          ...t,
-          status: t.status ?? (t.completed ? "done" : "pending"),
-          priority: t.priority ?? "low",
-        }));
-        console.log(`[useTasks] Loaded tasks from Supabase:`, remoteTasks);
-        setTasks(normalize(remoteTasks));
-        localStorage.setItem(keyFor(workspace), JSON.stringify(remoteTasks));
-      } else {
-        console.log(`[useTasks] No tasks found in Supabase for workspace: ${workspace}`);
-      }
-      isSynced.current = true;
-    });
-  }, [workspace]);
-
-  // Persist: localStorage immediately, Supabase debounced.
-  useEffect(() => {
-    localStorage.setItem(keyFor(workspace), JSON.stringify(tasks));
-    if (!isSynced.current) return; // skip until remote load completes
-    saveTasks(workspace, tasks);
-  }, [tasks, workspace]);
-
-  // Re-normalize every 30s so tasks moving into overdue reorder themselves.
+  // Force re-normalization every 30s for overdue task sorting
   useEffect(() => {
     const id = window.setInterval(() => {
-      setTasks((prev) => {
-        const next = normalize(prev);
-        for (let i = 0; i < next.length; i++) {
-          if (next[i] !== prev[i]) return next;
-        }
-        return prev;
-      });
+      setTick((t) => t + 1);
     }, 30000);
     return () => window.clearInterval(id);
   }, []);
 
+  const currentWorkspaceTasks = useMemo(() => {
+    return allTasks[workspace] || EMPTY_TASKS;
+  }, [allTasks, workspace]);
+
+  const tasks = useMemo(() => {
+    return normalize(currentWorkspaceTasks, tick);
+  }, [currentWorkspaceTasks, tick]);
+
   const addTask = useCallback(
-    (t: Omit<Task, "id" | "createdAt" | "completed" | "status"> & { completed?: boolean; status?: Task["status"] }) => {
-      setTasks((prev) =>
-        normalize([
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            createdAt: new Date().toISOString(),
-            completed: false,
-            status: "pending",
-            priority: "low",
-            ...t,
-          },
-        ])
-      );
+    async (t: Omit<Task, "id" | "createdAt" | "completed" | "status"> & { completed?: boolean; status?: Task["status"] }) => {
+      const newTask: Task = {
+        id: crypto.randomUUID(),
+        createdAt: new Date().toISOString(),
+        completed: false,
+        status: "pending",
+        priority: "low",
+        ...t,
+      };
+      const nextTasks = [...currentWorkspaceTasks, newTask];
+      await updateTasks(workspace, nextTasks);
     },
-    []
+    [currentWorkspaceTasks, workspace, updateTasks]
   );
 
-  const removeTask = useCallback((id: string) => {
-    setTasks((prev) => prev.filter((t) => t.id !== id));
-  }, []);
+  const removeTask = useCallback(async (id: string) => {
+    const nextTasks = currentWorkspaceTasks.filter((t) => t.id !== id);
+    await updateTasks(workspace, nextTasks);
+  }, [currentWorkspaceTasks, workspace, updateTasks]);
 
-  const toggleTask = useCallback((id: string) => {
-    setTasks((prev) =>
-      normalize(
-        prev.map((t) => {
-          if (t.id !== id) return t;
-          const completed = !t.completed;
-          return { ...t, completed, status: completed ? "done" : "pending" };
-        })
-      )
-    );
-  }, []);
-
-  const setTaskStatus = useCallback((id: string, status: Task["status"]) => {
-    setTasks((prev) =>
-      normalize(
-        prev.map((t) => {
-          if (t.id !== id) return t;
-          const completed = status === "done";
-          return { ...t, status, completed };
-        })
-      )
-    );
-  }, []);
-
-  const setTaskDueDate = useCallback((id: string, dueDate: string | undefined) => {
-    setTasks((prev) =>
-      normalize(prev.map((t) => (t.id === id ? { ...t, dueDate } : t)))
-    );
-  }, []);
-
-  const reorderTask = useCallback((activeId: string, overId: string) => {
-    setTasks((prev) => {
-      const active = prev.find((t) => t.id === activeId);
-      if (!active) return prev;
-
-      let dstQ: Quadrant;
-      let anchorId: string | null = null;
-      if ((QUADRANTS as string[]).includes(overId)) {
-        dstQ = overId as Quadrant;
-      } else {
-        const overTask = prev.find((t) => t.id === overId);
-        if (!overTask) return prev;
-        dstQ = overTask.quadrant;
-        anchorId = overId;
-      }
-
-      const without = prev.filter((t) => t.id !== activeId);
-      const moved: Task = { ...active, quadrant: dstQ };
-
-      let inserted: Task[];
-      if (anchorId) {
-        const idx = without.findIndex((t) => t.id === anchorId);
-        inserted = [...without.slice(0, idx), moved, ...without.slice(idx)];
-      } else {
-        const lastIdx = (() => {
-          for (let i = without.length - 1; i >= 0; i--) {
-            if (without[i].quadrant === dstQ) return i;
-          }
-          return -1;
-        })();
-        inserted = [
-          ...without.slice(0, lastIdx + 1),
-          moved,
-          ...without.slice(lastIdx + 1),
-        ];
-      }
-
-      return normalize(inserted);
+  const toggleTask = useCallback(async (id: string) => {
+    const nextTasks = currentWorkspaceTasks.map((t) => {
+      if (t.id !== id) return t;
+      const completed = !t.completed;
+      return { ...t, completed, status: completed ? "done" : "pending" };
     });
-  }, []);
+    await updateTasks(workspace, nextTasks);
+  }, [currentWorkspaceTasks, workspace, updateTasks]);
 
-  const renameTask = useCallback((id: string, title: string) => {
-    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, title } : t)));
-  }, []);
+  const setTaskStatus = useCallback(async (id: string, status: Task["status"]) => {
+    const nextTasks = currentWorkspaceTasks.map((t) => {
+      if (t.id !== id) return t;
+      const completed = status === "done";
+      return { ...t, status, completed };
+    });
+    await updateTasks(workspace, nextTasks);
+  }, [currentWorkspaceTasks, workspace, updateTasks]);
 
-  const setTaskPriority = useCallback((id: string, priority: Task["priority"]) => {
-    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, priority } : t)));
-  }, []);
+  const setTaskDueDate = useCallback(async (id: string, dueDate: string | undefined) => {
+    const nextTasks = currentWorkspaceTasks.map((t) => (t.id === id ? { ...t, dueDate } : t));
+    await updateTasks(workspace, nextTasks);
+  }, [currentWorkspaceTasks, workspace, updateTasks]);
+
+  const reorderTask = useCallback(async (activeId: string, overId: string) => {
+    const active = currentWorkspaceTasks.find((t) => t.id === activeId);
+    if (!active) return;
+
+    let dstQ: Quadrant;
+    let anchorId: string | null = null;
+    if ((QUADRANTS as string[]).includes(overId)) {
+      dstQ = overId as Quadrant;
+    } else {
+      const overTask = currentWorkspaceTasks.find((t) => t.id === overId);
+      if (!overTask) return;
+      dstQ = overTask.quadrant;
+      anchorId = overId;
+    }
+
+    const without = currentWorkspaceTasks.filter((t) => t.id !== activeId);
+    const moved: Task = { ...active, quadrant: dstQ };
+
+    let inserted: Task[];
+    if (anchorId) {
+      const idx = without.findIndex((t) => t.id === anchorId);
+      inserted = [...without.slice(0, idx), moved, ...without.slice(idx)];
+    } else {
+      const lastIdx = (() => {
+        for (let i = without.length - 1; i >= 0; i--) {
+          if (without[i].quadrant === dstQ) return i;
+        }
+        return -1;
+      })();
+      inserted = [
+        ...without.slice(0, lastIdx + 1),
+        moved,
+        ...without.slice(lastIdx + 1),
+      ];
+    }
+
+    await updateTasks(workspace, inserted);
+  }, [currentWorkspaceTasks, workspace, updateTasks]);
+
+  const renameTask = useCallback(async (id: string, title: string) => {
+    const nextTasks = currentWorkspaceTasks.map((t) => (t.id === id ? { ...t, title } : t));
+    await updateTasks(workspace, nextTasks);
+  }, [currentWorkspaceTasks, workspace, updateTasks]);
+
+  const setTaskPriority = useCallback(async (id: string, priority: Task["priority"]) => {
+    const nextTasks = currentWorkspaceTasks.map((t) => (t.id === id ? { ...t, priority } : t));
+    await updateTasks(workspace, nextTasks);
+  }, [currentWorkspaceTasks, workspace, updateTasks]);
 
   return { tasks, addTask, removeTask, toggleTask, reorderTask, renameTask, setTaskStatus, setTaskDueDate, setTaskPriority };
 }

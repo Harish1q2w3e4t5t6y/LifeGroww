@@ -1,0 +1,96 @@
+{
+  "theme": "dark",
+  "months": {
+    "2026-04": {
+      "days": {},
+      "habits": [
+        { "id": "wake", "name": "Wake up 05:00", "emoji": "⏰" },
+        { "id": "stretch", "name": "Stretching", "emoji": "🤸" },
+        { "id": "gym", "name": "Gym", "emoji": "💪" },
+        { "id": "read", "name": "Reading", "emoji": "📖" },
+        { "id": "plan", "name": "Day Planning", "emoji": "🗓️" },
+        { "id": "work", "name": "Project Work", "emoji": "🎯" },
+        { "id": "sugar", "name": "No Sugar", "emoji": "🚫" },
+        { "id": "864d140d-a9b8-4d31-af58-c80b166c4c94", "name": "vv", "emoji": "🎯" }
+      ]
+    },
+    "2026-06": {
+      "days": {
+        "1": { "mood": 4, "sleep": 7.5, "checks": { "wake": true, "stretch": true, "plan": true, "sugar": true } },
+        "2": { "mood": 5, "sleep": 8, "checks": { "wake": true, "stretch": true, "gym": true, "plan": true, "work": true, "sugar": true } },
+        "3": { "mood": 3, "sleep": 6, "checks": { "plan": true, "sugar": true } },
+        "4": { "mood": 4, "sleep": 7, "checks": { "stretch": true, "gym": true, "read": true, "sugar": true } },
+        "5": { "mood": 4, "sleep": 8, "checks": { "wake": true, "read": true, "plan": true } },
+        "6": { "mood": 5, "sleep": 8.5, "checks": { "wake": true, "stretch": true, "gym": true, "read": true, "plan": true, "work": true, "sugar": true } },
+        "7": { "mood": 3, "sleep": 6.5, "checks": { "sugar": true } },
+        "8": { "mood": 4, "sleep": 7.5, "checks": { "wake": true, "gym": true, "plan": true, "work": true } },
+        "9": { "mood": 4, "sleep": 7, "checks": { "stretch": true, "read": true, "sugar": true } },
+        "10": { "mood": 5, "sleep": 8, "checks": { "wake": true, "stretch": true, "gym": true, "read": true, "plan": true, "work": true, "sugar": true } },
+        "11": { "mood": 4, "sleep": 7.5, "checks": { "wake": true, "plan": true, "sugar": true } },
+        "12": { "mood": 3, "sleep": 6, "checks": { "gym": true, "sugar": true } },
+        "13": { "mood": 4, "sleep": 7.5, "checks": { "stretch": true, "read": true, "plan": true } },
+        "14": { "mood": 5, "sleep": 8, "checks": { "wake": true, "stretch": true, "gym": true, "read": true, "plan": true, "work": true, "sugar": true } },
+        "15": { "mood": 4, "sleep": 7, "checks": { "wake": true, "plan": true, "sugar": true } },
+        "16": { "mood": 3, "sleep": 6.5, "checks": { "sugar": true } },
+        "17": { "mood": 4, "sleep": 8, "checks": { "gym": true, "read": true, "plan": true, "work": true } },
+        "18": { "mood": 4, "sleep": 7.5, "checks": { "wake": true, "stretch": true, "sugar": true } },
+        "19": { "mood": 5, "sleep": 8.5, "checks": { "wake": true, "stretch": true, "gym": true, "read": true, "plan": true, "work": true, "sugar": true } },
+        "20": { "mood": 4, "sleep": 7, "checks": { "gym": true, "stretch": true } },
+        "21": { "mood": 4, "sleep": 7.5, "checks": { "wake": true, "plan": true, "sugar": true } },
+        "22": { "mood": 3, "sleep": 6, "checks": { "sugar": true } },
+        "23": { "mood": 4, "sleep": 8, "checks": { "gym": true, "read": true, "plan": true } },
+        "24": { "mood": 5, "sleep": 8, "checks": { "wake": true, "stretch": true, "gym": true, "read": true, "plan": true, "work": true, "sugar": true } },
+        "25": { "mood": 4, "sleep": 7.5, "checks": { "wake": true, "plan": true } },
+        "26": { "mood": 3, "sleep": 6.5, "checks": { "sugar": true } },
+        "27": { "mood": 4, "sleep": 7, "checks": { "gym": true, "read": true, "sugar": true } },
+        "28": { "mood": 5, "sleep": 8.5, "checks": { "wake": true, "stretch": true, "gym": true, "read": true, "plan": true, "work": true, "sugar": true } },
+        "29": { "mood": 4, "sleep": 7.5, "checks": { "wake": true, "plan": true, "sugar": true } },
+        "30": { "mood": 4, "sleep": 8, "checks": { "stretch": true, "read": true, "sugar": true } }
+      },
+      "habits": [
+        { "id": "wake", "name": "Wake up 05:00", "emoji": "⏰" },
+        { "id": "stretch", "name": "Stretching", "emoji": "🤸" },
+        { "id": "gym", "name": "Gym", "emoji": "💪" },
+        { "id": "read", "name": "Reading", "emoji": "📖" },
+        { "id": "plan", "name": "Day Planning", "emoji": "🗓️" },
+        { "id": "work", "name": "Project Work", "emoji": "🎯" },
+        { "id": "sugar", "name": "No Sugar", "emoji": "🚫" },
+        { "id": "864d140d-a9b8-4d31-af58-c80b166c4c94", "name": "vv", "emoji": "🎯" }
+      ]
+    },
+    "2026-07": {
+      "days": {
+        "1": { "mood": 4, "sleep": 7.5, "checks": { "864d140d-a9b8-4d31-af58-c80b166c4c94": true } },
+        "2": { "mood": 4, "sleep": 7, "checks": { "864d140d-a9b8-4d31-af58-c80b166c4c94": true } },
+        "3": { "mood": 3, "sleep": 6.5, "checks": { "864d140d-a9b8-4d31-af58-c80b166c4c94": true } },
+        "4": { "mood": 4, "sleep": 7.5, "checks": { "864d140d-a9b8-4d31-af58-c80b166c4c94": true } },
+        "5": { "mood": 5, "sleep": 8.5, "checks": { "864d140d-a9b8-4d31-af58-c80b166c4c94": true } },
+        "6": { "mood": 4, "sleep": 7, "checks": { "864d140d-a9b8-4d31-af58-c80b166c4c94": true } },
+        "7": { "mood": 5, "sleep": 12, "checks": { "gym": true, "wake": true, "stretch": true, "864d140d-a9b8-4d31-af58-c80b166c4c94": true } },
+        "8": { "mood": 4, "sleep": 7.5, "checks": { "gym": true, "stretch": true, "864d140d-a9b8-4d31-af58-c80b166c4c94": true } },
+        "9": { "mood": 3, "sleep": 6.5, "checks": { "864d140d-a9b8-4d31-af58-c80b166c4c94": true } },
+        "10": { "mood": 4, "sleep": 7, "checks": { "864d140d-a9b8-4d31-af58-c80b166c4c94": true } },
+        "11": { "mood": 4, "sleep": 7.5, "checks": { "864d140d-a9b8-4d31-af58-c80b166c4c94": true } },
+        "12": { "mood": 4, "sleep": 8, "checks": { "sugar": true, "864d140d-a9b8-4d31-af58-c80b166c4c94": true } },
+        "13": { "mood": 3, "sleep": 6.5, "checks": { "sugar": true } },
+        "14": { "mood": 4, "sleep": 8, "checks": { "sugar": true, "864d140d-a9b8-4d31-af58-c80b166c4c94": true } },
+        "15": { "mood": 5, "sleep": 8, "checks": { "sugar": true, "864d140d-a9b8-4d31-af58-c80b166c4c94": true } },
+        "16": { "mood": 4, "sleep": 7, "checks": { "sugar": true } },
+        "17": { "mood": 4, "sleep": 7.5, "checks": { "gym": true, "wake": true, "plan": true, "sugar": true, "864d140d-a9b8-4d31-af58-c80b166c4c94": true } },
+        "18": { "mood": 4, "sleep": 8, "checks": { "sugar": true, "864d140d-a9b8-4d31-af58-c80b166c4c94": true } },
+        "19": { "mood": 5, "sleep": 8.5, "checks": { "gym": true, "plan": true, "read": true, "work": true, "sugar": true } },
+        "20": { "mood": 4, "sleep": 7, "checks": { "gym": true } }
+      },
+      "habits": [
+        { "id": "wake", "name": "Wake up 05:00", "emoji": "⏰" },
+        { "id": "stretch", "name": "Stretching", "emoji": "🤸" },
+        { "id": "gym", "name": "Gym", "emoji": "💪" },
+        { "id": "read", "name": "Reading", "emoji": "📖" },
+        { "id": "plan", "name": "Day Planning", "emoji": "🗓️" },
+        { "id": "work", "name": "Project Work", "emoji": "🎯" },
+        { "id": "sugar", "name": "No Sugar", "emoji": "🚫" },
+        { "id": "864d140d-a9b8-4d31-af58-c80b166c4c94", "name": "vv", "emoji": "🎯" }
+      ]
+    }
+  }
+}

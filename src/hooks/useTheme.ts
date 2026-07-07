@@ -1,18 +1,24 @@
-import { useEffect, useState } from "react";
-
-const KEY = "eisenhower.theme";
+import { useCallback, useEffect } from "react";
+import { useSync } from "@/context/SyncContext";
 
 export function useTheme() {
-  const [theme, setTheme] = useState<"light" | "dark">(() => {
-    const stored = localStorage.getItem(KEY);
-    if (stored === "light" || stored === "dark") return stored;
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  });
+  const { settings, updateSetting } = useSync();
+
+  const theme: "light" | "dark" = settings.theme === "light" || settings.theme === "dark"
+    ? settings.theme
+    : "dark"; // Default to dark theme as requested for this Eisenhower app
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
-    localStorage.setItem(KEY, theme);
   }, [theme]);
 
-  return { theme, toggle: () => setTheme((t) => (t === "dark" ? "light" : "dark")) };
+  const toggle = useCallback(
+    async () => {
+      const next = theme === "dark" ? "light" : "dark";
+      await updateSetting("theme", next);
+    },
+    [theme, updateSetting]
+  );
+
+  return { theme, toggle };
 }

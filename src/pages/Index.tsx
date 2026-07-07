@@ -27,6 +27,7 @@ import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
 import { AppSettingsButton } from "@/components/AppSettings";
 import { useDeadlineWatcher, useHourlyChime } from "@/hooks/useNotifications";
 import { useAuth } from "@/context/AuthContext";
+import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
 
 
 const bgColor: Record<Quadrant, string> = {
@@ -195,6 +196,7 @@ const Index = () => {
         <div className="h-7 w-7 rounded-md bg-gradient-to-br from-primary to-primary/60 grid place-items-center text-primary-foreground font-bold text-sm">E</div>
         <h1 className="text-sm font-semibold">Eisenhower Matrix</h1>
         <div className="ml-auto flex items-center gap-1.5">
+          <SyncStatusIndicator />
           <PomodoroTimer />
           <SoundSettingsButton />
           <Link

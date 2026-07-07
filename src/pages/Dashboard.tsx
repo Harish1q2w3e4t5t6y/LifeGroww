@@ -12,7 +12,8 @@ import { useHabitStore, computeStats } from "@/lib/habit-store";
 import { useAppSettings, getReportLayoutRows } from "@/hooks/useAppSettings";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
-import { fetchSettings, saveSetting } from "@/lib/db";
+import { useSync } from "@/context/SyncContext";
+import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
 
 const EMOJI_SUGGESTIONS = ["💪","📚","🏃","💧","🧘","💰","🍎","🎯","💻","😴","⏰","🥗","🚴","☕","✍️","🎨","🌱","🔥"];
 
@@ -135,31 +136,15 @@ export default function Dashboard() {
   const todayLog = todayDay ? monthData.days[todayDay] : undefined;
   const isDark = store.theme === "dark";
 
-  // Habit Game Appearance states
-  const [accentColor, setAccentColor] = useState<keyof typeof ACCENT_COLORS>(() => {
-    const saved = localStorage.getItem("habitgame.accentColor");
-    return (saved && saved in ACCENT_COLORS) ? (saved as keyof typeof ACCENT_COLORS) : "green";
-  });
-  const [cardSize, setCardSize] = useState<keyof typeof CARD_SIZE_CONFIGS>(() => {
-    const saved = localStorage.getItem("habitgame.cardSize");
-    return (saved && saved in CARD_SIZE_CONFIGS) ? (saved as keyof typeof CARD_SIZE_CONFIGS) : "medium";
-  });
-
-  // Fetch appearance settings from Supabase on mount.
-  useEffect(() => {
-    fetchSettings().then((remote) => {
-      if (!remote?.habitgame) return;
-      const hg = remote.habitgame as { accentColor?: string; cardSize?: string };
-      if (hg.accentColor && hg.accentColor in ACCENT_COLORS) {
-        setAccentColor(hg.accentColor as keyof typeof ACCENT_COLORS);
-        localStorage.setItem("habitgame.accentColor", hg.accentColor);
-      }
-      if (hg.cardSize && hg.cardSize in CARD_SIZE_CONFIGS) {
-        setCardSize(hg.cardSize as keyof typeof CARD_SIZE_CONFIGS);
-        localStorage.setItem("habitgame.cardSize", hg.cardSize);
-      }
-    });
-  }, []);
+  // Habit Game Appearance settings from central SyncContext
+  const { settings, updateSetting } = useSync();
+  const habitgame = settings.habitgame || { accentColor: "green", cardSize: "medium" };
+  const accentColor = (habitgame.accentColor && habitgame.accentColor in ACCENT_COLORS)
+    ? (habitgame.accentColor as keyof typeof ACCENT_COLORS)
+    : "green";
+  const cardSize = (habitgame.cardSize && habitgame.cardSize in CARD_SIZE_CONFIGS)
+    ? (habitgame.cardSize as keyof typeof CARD_SIZE_CONFIGS)
+    : "medium";
 
   const accentValue = ACCENT_COLORS[accentColor];
   const sizeConfig = CARD_SIZE_CONFIGS[cardSize];
@@ -206,6 +191,7 @@ export default function Dashboard() {
           </select>
         </div>
         <div className="ml-auto flex items-center gap-1.5">
+          <SyncStatusIndicator />
           <span className="h-7 px-2.5 rounded-full inline-flex items-center gap-1.5 text-xs bg-white/5 border border-white/10" style={{ color: "oklch(0.78 0.16 70)" }}>
             <Flame className="h-3.5 w-3.5" /> {stats.currentStreak}
           </span>
@@ -233,9 +219,7 @@ export default function Dashboard() {
                     <button
                       key={colorName}
                       onClick={() => {
-                        setAccentColor(colorName);
-                        localStorage.setItem("habitgame.accentColor", colorName);
-                        saveSetting("habitgame", { accentColor: colorName, cardSize });
+                        updateSetting("habitgame", { accentColor: colorName, cardSize });
                       }}
                       className={`h-5 w-5 rounded-full border grid place-items-center transition-all ${
                         accentColor === colorName ? "border-white scale-110" : "border-transparent hover:scale-105"
@@ -257,9 +241,7 @@ export default function Dashboard() {
                     <button
                       key={size}
                       onClick={() => {
-                        setCardSize(size);
-                        localStorage.setItem("habitgame.cardSize", size);
-                        saveSetting("habitgame", { accentColor, cardSize: size });
+                        updateSetting("habitgame", { accentColor, cardSize: size });
                       }}
                       className={`h-6 rounded border text-[10px] font-medium transition-colors ${
                         cardSize === size
@@ -276,11 +258,7 @@ export default function Dashboard() {
               {/* Reset Appearance */}
               <button
                 onClick={() => {
-                  setAccentColor("green");
-                  setCardSize("medium");
-                  localStorage.removeItem("habitgame.accentColor");
-                  localStorage.removeItem("habitgame.cardSize");
-                  saveSetting("habitgame", { accentColor: "green", cardSize: "medium" });
+                  updateSetting("habitgame", { accentColor: "green", cardSize: "medium" });
                   toast.success("Appearance settings reset!");
                 }}
                 className="w-full h-7 flex items-center justify-center gap-1 text-[10px] font-medium text-red-400 hover:text-red-300 bg-red-950/20 hover:bg-red-950/40 border border-red-500/20 rounded transition-colors"

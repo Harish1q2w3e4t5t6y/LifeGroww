@@ -13,4 +13,4 @@ if (!isSupabaseConfigured) {
 
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey)
-  : (null as any);
+  : (null as unknown as ReturnType<typeof createClient>);

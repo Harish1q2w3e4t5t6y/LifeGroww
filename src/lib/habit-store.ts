@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { fetchHabits, saveHabits } from "@/lib/db";
+import { useCallback, useEffect } from "react";
+import { useSync } from "@/context/SyncContext";
 
 export type Habit = { id: string; name: string; emoji: string };
 export type DayLog = {
@@ -10,8 +10,6 @@ export type DayLog = {
 };
 export type MonthData = { habits: Habit[]; days: Record<number, DayLog> };
 export type Store = { months: Record<string, MonthData>; theme: "dark" | "light" };
-
-const KEY = "habitgame:v1";
 
 const DEFAULT_HABITS: Habit[] = [
   { id: "wake", name: "Wake up 05:00", emoji: "⏰" },
@@ -26,18 +24,6 @@ const DEFAULT_HABITS: Habit[] = [
 export const monthKey = (year: number, month: number) =>
   `${year}-${String(month + 1).padStart(2, "0")}`;
 
-function loadStore(): Store {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (raw) return JSON.parse(raw) as Store;
-  } catch {}
-  return { months: {}, theme: "dark" };
-}
-
-function saveStore(s: Store) {
-  localStorage.setItem(KEY, JSON.stringify(s));
-}
-
 function findLatestMonthHabits(months: Record<string, MonthData>): Habit[] | null {
   const keys = Object.keys(months).sort();
   for (let i = keys.length - 1; i >= 0; i--) {
@@ -48,91 +34,116 @@ function findLatestMonthHabits(months: Record<string, MonthData>): Habit[] | nul
 }
 
 export function useHabitStore(year: number, month: number) {
-  const [store, setStore] = useState<Store>(() => loadStore());
+  const { habits: store, updateHabits } = useSync();
   const key = monthKey(year, month);
   const daysCount = new Date(year, month + 1, 0).getDate();
 
   // ensure month data exists
   useEffect(() => {
-    setStore((s) => {
-      if (s.months[key]) return s;
-      const seed = findLatestMonthHabits(s.months) ?? DEFAULT_HABITS;
-      return {
-        ...s,
-        months: { ...s.months, [key]: { habits: seed.map((h) => ({ ...h })), days: {} } },
+    if (!store.months[key]) {
+      const seed = findLatestMonthHabits(store.months) ?? DEFAULT_HABITS;
+      const updated: Store = {
+        ...store,
+        months: {
+          ...store.months,
+          [key]: { habits: seed.map((h) => ({ ...h })), days: {} }
+        }
       };
-    });
-  }, [key]);
-
-  // Fetch from Supabase on mount, override local store.
-  useEffect(() => {
-    console.log("[useHabitStore] Fetching habits from Supabase...");
-    fetchHabits().then((remote) => {
-      if (!remote) {
-        console.log("[useHabitStore] No habit data found in Supabase.");
-        return;
-      }
-      const remoteStore = remote as Store;
-      if (!remoteStore.months) return;
-      console.log("[useHabitStore] Loaded habits from Supabase:", remoteStore);
-      setStore(remoteStore);
-      saveStore(remoteStore); // hydrate localStorage
-    });
-  }, []);
-
-  // Persist to localStorage immediately, Supabase debounced.
-  useEffect(() => {
-    saveStore(store);
-    saveHabits(store);
-  }, [store]);
+      updateHabits(updated);
+    }
+  }, [key, store, updateHabits]);
 
   const monthData: MonthData = store.months[key] ?? { habits: DEFAULT_HABITS, days: {} };
 
-  const update = (fn: (m: MonthData) => MonthData) =>
-    setStore((s) => ({ ...s, months: { ...s.months, [key]: fn(s.months[key] ?? { habits: DEFAULT_HABITS, days: {} }) } }));
+  const update = useCallback(
+    async (fn: (m: MonthData) => MonthData) => {
+      const currentMonthData = store.months[key] ?? { habits: DEFAULT_HABITS, days: {} };
+      const nextMonthData = fn(currentMonthData);
+      const updated: Store = {
+        ...store,
+        months: {
+          ...store.months,
+          [key]: nextMonthData
+        }
+      };
+      await updateHabits(updated);
+    },
+    [key, store, updateHabits]
+  );
 
-  const toggleCheck = useCallback((habitId: string, day: number) => {
-    update((m) => {
-      const dayLog = m.days[day] ?? { checks: {} };
-      const checks = { ...dayLog.checks, [habitId]: !dayLog.checks[habitId] };
-      return { ...m, days: { ...m.days, [day]: { ...dayLog, checks } } };
-    });
-  }, [key]);
+  const toggleCheck = useCallback(
+    async (habitId: string, day: number) => {
+      await update((m) => {
+        const dayLog = m.days[day] ?? { checks: {} };
+        const checks = { ...dayLog.checks, [habitId]: !dayLog.checks[habitId] };
+        return { ...m, days: { ...m.days, [day]: { ...dayLog, checks } } };
+      });
+    },
+    [update]
+  );
 
-  const addHabit = useCallback((name: string, emoji = "✨") => {
-    if (!name.trim()) return;
-    update((m) => ({ ...m, habits: [...m.habits, { id: crypto.randomUUID(), name: name.trim(), emoji }] }));
-  }, [key]);
+  const addHabit = useCallback(
+    async (name: string, emoji = "✨") => {
+      if (!name.trim()) return;
+      await update((m) => ({
+        ...m,
+        habits: [...m.habits, { id: crypto.randomUUID(), name: name.trim(), emoji }],
+      }));
+    },
+    [update]
+  );
 
-  const updateHabit = useCallback((id: string, patch: Partial<Habit>) => {
-    update((m) => ({ ...m, habits: m.habits.map((h) => (h.id === id ? { ...h, ...patch } : h)) }));
-  }, [key]);
+  const updateHabit = useCallback(
+    async (id: string, patch: Partial<Habit>) => {
+      await update((m) => ({
+        ...m,
+        habits: m.habits.map((h) => (h.id === id ? { ...h, ...patch } : h)),
+      }));
+    },
+    [update]
+  );
 
-  const deleteHabit = useCallback((id: string) => {
-    update((m) => ({ ...m, habits: m.habits.filter((h) => h.id !== id) }));
-  }, [key]);
+  const deleteHabit = useCallback(
+    async (id: string) => {
+      await update((m) => ({
+        ...m,
+        habits: m.habits.filter((h) => h.id !== id),
+      }));
+    },
+    [update]
+  );
 
-  const moveHabit = useCallback((id: string, dir: -1 | 1) => {
-    update((m) => {
-      const idx = m.habits.findIndex((h) => h.id === id);
-      const j = idx + dir;
-      if (idx < 0 || j < 0 || j >= m.habits.length) return m;
-      const arr = [...m.habits];
-      [arr[idx], arr[j]] = [arr[j], arr[idx]];
-      return { ...m, habits: arr };
-    });
-  }, [key]);
+  const moveHabit = useCallback(
+    async (id: string, dir: -1 | 1) => {
+      await update((m) => {
+        const idx = m.habits.findIndex((h) => h.id === id);
+        const j = idx + dir;
+        if (idx < 0 || j < 0 || j >= m.habits.length) return m;
+        const arr = [...m.habits];
+        [arr[idx], arr[j]] = [arr[j], arr[idx]];
+        return { ...m, habits: arr };
+      });
+    },
+    [update]
+  );
 
-  const setDayMeta = useCallback((day: number, patch: Partial<DayLog>) => {
-    update((m) => {
-      const dayLog = m.days[day] ?? { checks: {} };
-      return { ...m, days: { ...m.days, [day]: { ...dayLog, ...patch } } };
-    });
-  }, [key]);
+  const setDayMeta = useCallback(
+    async (day: number, patch: Partial<DayLog>) => {
+      await update((m) => {
+        const dayLog = m.days[day] ?? { checks: {} };
+        return { ...m, days: { ...m.days, [day]: { ...dayLog, ...patch } } };
+      });
+    },
+    [update]
+  );
 
-  const toggleTheme = useCallback(() => {
-    setStore((s) => ({ ...s, theme: s.theme === "dark" ? "light" : "dark" }));
-  }, []);
+  const toggleTheme = useCallback(async () => {
+    const updated: Store = {
+      ...store,
+      theme: store.theme === "dark" ? "light" : "dark"
+    };
+    await updateHabits(updated);
+  }, [store, updateHabits]);
 
   return { store, monthData, daysCount, toggleCheck, addHabit, updateHabit, deleteHabit, moveHabit, setDayMeta, toggleTheme };
 }

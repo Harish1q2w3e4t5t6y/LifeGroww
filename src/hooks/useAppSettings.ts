@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
-import { fetchSettings, saveSetting } from "@/lib/db";
+import { useCallback, useEffect } from "react";
+import { useSync } from "@/context/SyncContext";
 
 export type Accent = "blue" | "green" | "purple" | "orange" | "red";
 export type ReportLayout = "compact" | "balanced" | "focus" | "large" | "xl" | "max";
 
-const KEY = "eisenhower.appSettings.v1";
 const ACCENTS: Accent[] = ["blue", "green", "purple", "orange", "red"];
 
 export const ACCENT_META: Record<Accent, { label: string; swatch: string }> = {
@@ -39,72 +38,47 @@ interface Settings {
 
 const DEFAULTS: Settings = { accent: "blue", reportLayout: DEFAULT_LAYOUT, showCompleted: true };
 
-function parseSettings(raw: unknown): Settings {
-  const parsed = raw as Partial<Settings>;
-  return {
-    accent: ACCENTS.includes(parsed?.accent as Accent) ? (parsed.accent as Accent) : "blue",
-    reportLayout:
-      REPORT_LAYOUTS.some((l) => l.id === parsed?.reportLayout)
-        ? (parsed.reportLayout as ReportLayout)
-        : DEFAULT_LAYOUT,
-    showCompleted: parsed?.showCompleted ?? true,
-  };
-}
-
-function load(): Settings {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return DEFAULTS;
-    return parseSettings(JSON.parse(raw));
-  } catch {
-    return DEFAULTS;
-  }
-}
-
 export function useAppSettings() {
-  const [settings, setSettings] = useState<Settings>(() => load());
+  const { settings, updateSetting } = useSync();
+  const appSettings: Settings = settings.appSettings || DEFAULTS;
 
-  // Fetch from Supabase on mount, override local settings.
+  // Sync accent classes to DOM
   useEffect(() => {
-    console.log("[useAppSettings] Fetching app settings from Supabase...");
-    fetchSettings().then((remote) => {
-      if (!remote?.appSettings) {
-        console.log("[useAppSettings] No app settings found in Supabase.");
-        return;
-      }
-      console.log("[useAppSettings] Loaded app settings from Supabase:", remote.appSettings);
-      const parsed = parseSettings(remote.appSettings);
-      setSettings(parsed);
-      localStorage.setItem(KEY, JSON.stringify(parsed));
-    });
-  }, []);
-
-  // Persist to localStorage + Supabase on every settings change.
-  useEffect(() => {
-    localStorage.setItem(KEY, JSON.stringify(settings));
     const html = document.documentElement;
-    ACCENTS.forEach((a) => html.classList.toggle(`accent-${a}`, a === settings.accent));
-    saveSetting("appSettings", settings);
-  }, [settings]);
+    ACCENTS.forEach((a) => {
+      html.classList.toggle(`accent-${a}`, a === appSettings.accent);
+    });
+  }, [appSettings.accent]);
 
   const setAccent = useCallback(
-    (accent: Accent) => setSettings((s) => ({ ...s, accent })),
-    []
-  );
-  const setReportLayout = useCallback(
-    (reportLayout: ReportLayout) => setSettings((s) => ({ ...s, reportLayout })),
-    []
-  );
-  const resetReportLayout = useCallback(
-    () => setSettings((s) => ({ ...s, reportLayout: DEFAULT_LAYOUT })),
-    []
-  );
-  const setShowCompleted = useCallback(
-    (showCompleted: boolean) => setSettings((s) => ({ ...s, showCompleted })),
-    []
+    async (accent: Accent) => {
+      await updateSetting("appSettings", { ...appSettings, accent });
+    },
+    [appSettings, updateSetting]
   );
 
-  return { ...settings, setAccent, setReportLayout, resetReportLayout, setShowCompleted };
+  const setReportLayout = useCallback(
+    async (reportLayout: ReportLayout) => {
+      await updateSetting("appSettings", { ...appSettings, reportLayout });
+    },
+    [appSettings, updateSetting]
+  );
+
+  const resetReportLayout = useCallback(
+    async () => {
+      await updateSetting("appSettings", { ...appSettings, reportLayout: DEFAULT_LAYOUT });
+    },
+    [appSettings, updateSetting]
+  );
+
+  const setShowCompleted = useCallback(
+    async (showCompleted: boolean) => {
+      await updateSetting("appSettings", { ...appSettings, showCompleted });
+    },
+    [appSettings, updateSetting]
+  );
+
+  return { ...appSettings, setAccent, setReportLayout, resetReportLayout, setShowCompleted };
 }
 
 export function getReportLayoutRows(id: ReportLayout): string {
