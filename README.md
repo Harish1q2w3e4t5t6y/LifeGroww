@@ -1,3 +1,3 @@
-# Welcome to your Lovable project
+# Welcome to likegrow project
 
 TODO: Document your project here
