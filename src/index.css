@@ -1,0 +1,151 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 40 33% 97%;
+    --foreground: 220 30% 18%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 30% 18%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 30% 18%;
+
+    --primary: 220 60% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 20% 94%;
+    --secondary-foreground: 220 30% 18%;
+
+    --muted: 220 20% 95%;
+    --muted-foreground: 220 12% 48%;
+
+    --accent: 220 20% 94%;
+    --accent-foreground: 220 30% 18%;
+
+    --destructive: 0 75% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 20% 90%;
+    --input: 220 20% 90%;
+    --ring: 220 60% 50%;
+
+    --radius: 0.875rem;
+
+    /* Quadrant pastels - light */
+    --q1: 8 80% 88%;        /* coral - urgent important */
+    --q1-foreground: 8 60% 32%;
+    --q2: 200 70% 88%;      /* sky - important not urgent */
+    --q2-foreground: 200 60% 28%;
+    --q3: 45 85% 86%;       /* warm amber */
+    --q3-foreground: 35 65% 30%;
+    --q4: 140 45% 86%;      /* sage */
+    --q4-foreground: 140 40% 25%;
+
+    --shadow-card: 0 1px 2px hsl(220 30% 18% / 0.04), 0 8px 24px -8px hsl(220 30% 18% / 0.08);
+    --shadow-float: 0 10px 30px -10px hsl(220 60% 50% / 0.45);
+  }
+
+  .dark {
+    --background: 224 30% 8%;
+    --foreground: 220 15% 92%;
+
+    --card: 224 25% 12%;
+    --card-foreground: 220 15% 92%;
+
+    --popover: 224 25% 12%;
+    --popover-foreground: 220 15% 92%;
+
+    --primary: 220 80% 65%;
+    --primary-foreground: 224 30% 8%;
+
+    --secondary: 224 20% 18%;
+    --secondary-foreground: 220 15% 92%;
+
+    --muted: 224 20% 16%;
+    --muted-foreground: 220 12% 62%;
+
+    --accent: 224 20% 18%;
+    --accent-foreground: 220 15% 92%;
+
+    --destructive: 0 70% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 224 20% 20%;
+    --input: 224 20% 20%;
+    --ring: 220 80% 65%;
+
+    --q1: 8 45% 24%;
+    --q1-foreground: 8 80% 82%;
+    --q2: 200 45% 22%;
+    --q2-foreground: 200 75% 82%;
+    --q3: 38 45% 22%;
+    --q3-foreground: 45 85% 80%;
+    --q4: 140 30% 20%;
+    --q4-foreground: 140 50% 80%;
+
+    --shadow-card: 0 1px 2px hsl(0 0% 0% / 0.4), 0 8px 24px -8px hsl(0 0% 0% / 0.5);
+    --shadow-float: 0 10px 30px -10px hsl(220 80% 65% / 0.55);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html, body, #root {
+    @apply h-full;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv11", "ss01", "ss03";
+  }
+}
+
+@layer utilities {
+  .shadow-card { box-shadow: var(--shadow-card); }
+  .shadow-float { box-shadow: var(--shadow-float); }
+  .task-dragging { @apply opacity-50 rotate-2 scale-105; }
+}
+
+/* ============================================================
+   Accent color overrides — applied on <html class="accent-*">.
+   Default (no class or accent-blue) uses the base theme.
+   ============================================================ */
+:root.accent-green  { --primary: 150 60% 42%; --ring: 150 60% 42%; --primary-foreground: 0 0% 100%; }
+:root.accent-purple { --primary: 265 60% 55%; --ring: 265 60% 55%; --primary-foreground: 0 0% 100%; }
+:root.accent-orange { --primary: 25 90% 55%;  --ring: 25 90% 55%;  --primary-foreground: 0 0% 100%; }
+:root.accent-red    { --primary: 0 75% 55%;   --ring: 0 75% 55%;   --primary-foreground: 0 0% 100%; }
+
+.dark.accent-green  { --primary: 150 65% 55%; --ring: 150 65% 55%; --primary-foreground: 224 30% 8%; }
+.dark.accent-purple { --primary: 265 70% 68%; --ring: 265 70% 68%; --primary-foreground: 224 30% 8%; }
+.dark.accent-orange { --primary: 25 90% 62%;  --ring: 25 90% 62%;  --primary-foreground: 224 30% 8%; }
+.dark.accent-red    { --primary: 0 75% 62%;   --ring: 0 75% 62%;   --primary-foreground: 224 30% 8%; }
+
+/* ============================================================
+   Personal workspace — softer quadrant palette.
+   Professional keeps the base palette.
+   ============================================================ */
+:root.workspace-personal {
+  --q1: 340 55% 92%;
+  --q1-foreground: 340 50% 35%;
+  --q2: 260 45% 92%;
+  --q2-foreground: 260 45% 35%;
+  --q3: 30 60% 92%;
+  --q3-foreground: 30 55% 32%;
+  --q4: 160 35% 90%;
+  --q4-foreground: 160 40% 28%;
+}
+.dark.workspace-personal {
+  --q1: 340 30% 22%;
+  --q1-foreground: 340 60% 82%;
+  --q2: 260 25% 22%;
+  --q2-foreground: 260 55% 82%;
+  --q3: 30 35% 20%;
+  --q3-foreground: 30 70% 80%;
+  --q4: 160 20% 18%;
+  --q4-foreground: 160 45% 80%;
+}
+
