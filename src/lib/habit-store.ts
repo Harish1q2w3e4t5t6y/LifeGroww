@@ -34,12 +34,14 @@ function findLatestMonthHabits(months: Record<string, MonthData>): Habit[] | nul
 }
 
 export function useHabitStore(year: number, month: number) {
-  const { habits: store, updateHabits } = useSync();
+  const { habits: store, updateHabits, syncStatus } = useSync();
   const key = monthKey(year, month);
   const daysCount = new Date(year, month + 1, 0).getDate();
 
-  // ensure month data exists
+  // ensure month data exists — but ONLY seed after sync engine has fully loaded
+  // and NEVER seed during loading/saving to prevent overwriting server data
   useEffect(() => {
+    if (syncStatus === "loading" || syncStatus === "saving") return;
     if (!store.months[key]) {
       const seed = findLatestMonthHabits(store.months) ?? DEFAULT_HABITS;
       const updated: Store = {
@@ -51,13 +53,13 @@ export function useHabitStore(year: number, month: number) {
       };
       updateHabits(updated);
     }
-  }, [key, store, updateHabits]);
+  }, [key, store, updateHabits, syncStatus]);
 
-  const monthData: MonthData = store.months[key] ?? { habits: DEFAULT_HABITS, days: {} };
+  const monthData: MonthData = store.months[key] ?? { habits: [], days: {} };
 
   const update = useCallback(
     async (fn: (m: MonthData) => MonthData) => {
-      const currentMonthData = store.months[key] ?? { habits: DEFAULT_HABITS, days: {} };
+      const currentMonthData = store.months[key] ?? { habits: [], days: {} };
       const nextMonthData = fn(currentMonthData);
       const updated: Store = {
         ...store,

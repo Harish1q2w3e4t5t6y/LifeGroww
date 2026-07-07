@@ -1,6 +1,6 @@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useSync } from "@/context/SyncContext";
-import { Cloud, CloudLightning, CloudOff, CloudRain, RefreshCw, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Cloud, CloudLightning, CloudOff, RefreshCw, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function SyncStatusIndicator() {
