@@ -41,9 +41,6 @@ export function useTasks(workspace: WorkspaceId = "professional") {
   }, []);
 
   const currentWorkspaceTasks = useMemo(() => {
-    if (workspace === "all") {
-      return [...(allTasks.personal || []), ...(allTasks.professional || [])];
-    }
     return allTasks[workspace] || EMPTY_TASKS;
   }, [allTasks, workspace]);
 
@@ -61,61 +58,47 @@ export function useTasks(workspace: WorkspaceId = "professional") {
         priority: "low",
         ...t,
       };
-      const targetWorkspace = workspace === "all" ? "personal" : workspace;
-      const targetList = allTasks[targetWorkspace] || [];
+      const targetList = allTasks[workspace] || [];
       const nextTasks = [...targetList, newTask];
-      await updateTasks(targetWorkspace, nextTasks);
+      await updateTasks(workspace, nextTasks);
     },
     [allTasks, workspace, updateTasks]
   );
 
   const removeTask = useCallback(async (id: string) => {
-    const targetWorkspace = workspace === "all" 
-      ? ((allTasks.personal || []).some(t => t.id === id) ? "personal" : "professional")
-      : workspace;
-    const targetList = allTasks[targetWorkspace] || [];
+    const targetList = allTasks[workspace] || [];
     const nextTasks = targetList.filter((t) => t.id !== id);
-    await updateTasks(targetWorkspace, nextTasks);
+    await updateTasks(workspace, nextTasks);
   }, [allTasks, workspace, updateTasks]);
 
   const toggleTask = useCallback(async (id: string) => {
-    const targetWorkspace = workspace === "all" 
-      ? ((allTasks.personal || []).some(t => t.id === id) ? "personal" : "professional")
-      : workspace;
-    const targetList = allTasks[targetWorkspace] || [];
+    const targetList = allTasks[workspace] || [];
     const nextTasks = targetList.map((t) => {
       if (t.id !== id) return t;
       const completed = !t.completed;
       return { ...t, completed, status: completed ? "done" : "pending" };
     });
-    await updateTasks(targetWorkspace, nextTasks);
+    await updateTasks(workspace, nextTasks);
   }, [allTasks, workspace, updateTasks]);
 
   const setTaskStatus = useCallback(async (id: string, status: Task["status"]) => {
-    const targetWorkspace = workspace === "all" 
-      ? ((allTasks.personal || []).some(t => t.id === id) ? "personal" : "professional")
-      : workspace;
-    const targetList = allTasks[targetWorkspace] || [];
+    const targetList = allTasks[workspace] || [];
     const nextTasks = targetList.map((t) => {
       if (t.id !== id) return t;
       const completed = status === "done";
       return { ...t, status, completed };
     });
-    await updateTasks(targetWorkspace, nextTasks);
+    await updateTasks(workspace, nextTasks);
   }, [allTasks, workspace, updateTasks]);
 
   const setTaskDueDate = useCallback(async (id: string, dueDate: string | undefined) => {
-    const targetWorkspace = workspace === "all" 
-      ? ((allTasks.personal || []).some(t => t.id === id) ? "personal" : "professional")
-      : workspace;
-    const targetList = allTasks[targetWorkspace] || [];
+    const targetList = allTasks[workspace] || [];
     const nextTasks = targetList.map((t) => (t.id === id ? { ...t, dueDate } : t));
-    await updateTasks(targetWorkspace, nextTasks);
+    await updateTasks(workspace, nextTasks);
   }, [allTasks, workspace, updateTasks]);
 
   const reorderTask = useCallback(async (activeId: string, overId: string) => {
-    const targetWorkspace = (allTasks.personal || []).some(t => t.id === activeId) ? "personal" : "professional";
-    const targetList = allTasks[targetWorkspace] || [];
+    const targetList = allTasks[workspace] || [];
     const active = targetList.find((t) => t.id === activeId);
     if (!active) return;
 
@@ -124,12 +107,10 @@ export function useTasks(workspace: WorkspaceId = "professional") {
     if ((QUADRANTS as string[]).includes(overId)) {
       dstQ = overId as Quadrant;
     } else {
-      const overTask = [...(allTasks.personal || []), ...(allTasks.professional || [])].find((t) => t.id === overId);
+      const overTask = targetList.find((t) => t.id === overId);
       if (!overTask) return;
       dstQ = overTask.quadrant;
-      if (targetWorkspace === ((allTasks.personal || []).some(t => t.id === overId) ? "personal" : "professional")) {
-        anchorId = overId;
-      }
+      anchorId = overId;
     }
 
     const without = targetList.filter((t) => t.id !== activeId);
@@ -153,25 +134,19 @@ export function useTasks(workspace: WorkspaceId = "professional") {
       ];
     }
 
-    await updateTasks(targetWorkspace, inserted);
-  }, [allTasks, updateTasks]);
+    await updateTasks(workspace, inserted);
+  }, [allTasks, workspace, updateTasks]);
 
   const renameTask = useCallback(async (id: string, title: string) => {
-    const targetWorkspace = workspace === "all" 
-      ? ((allTasks.personal || []).some(t => t.id === id) ? "personal" : "professional")
-      : workspace;
-    const targetList = allTasks[targetWorkspace] || [];
+    const targetList = allTasks[workspace] || [];
     const nextTasks = targetList.map((t) => (t.id === id ? { ...t, title } : t));
-    await updateTasks(targetWorkspace, nextTasks);
+    await updateTasks(workspace, nextTasks);
   }, [allTasks, workspace, updateTasks]);
 
   const setTaskPriority = useCallback(async (id: string, priority: Task["priority"]) => {
-    const targetWorkspace = workspace === "all" 
-      ? ((allTasks.personal || []).some(t => t.id === id) ? "personal" : "professional")
-      : workspace;
-    const targetList = allTasks[targetWorkspace] || [];
+    const targetList = allTasks[workspace] || [];
     const nextTasks = targetList.map((t) => (t.id === id ? { ...t, priority } : t));
-    await updateTasks(targetWorkspace, nextTasks);
+    await updateTasks(workspace, nextTasks);
   }, [allTasks, workspace, updateTasks]);
 
   return { tasks, addTask, removeTask, toggleTask, reorderTask, renameTask, setTaskStatus, setTaskDueDate, setTaskPriority };
