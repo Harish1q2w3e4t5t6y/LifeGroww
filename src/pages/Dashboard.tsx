@@ -7,6 +7,7 @@ import {
 import {
   ArrowLeft, Plus, Pencil, Trash2, ArrowUp, ArrowDown, Check,
   Flame, Zap, Moon, Sun, Settings as SettingsIcon,
+  ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { useHabitStore, computeStats } from "@/lib/habit-store";
 import { useAppSettings, getReportLayoutRows } from "@/hooks/useAppSettings";
@@ -117,6 +118,24 @@ export default function Dashboard() {
   const isCurrentMonth = year === today.getFullYear() && month === today.getMonth();
   const todayDay = isCurrentMonth ? today.getDate() : undefined;
 
+  const handlePrevMonth = () => {
+    if (month === 0) {
+      setMonth(11);
+      setYear((y) => y - 1);
+    } else {
+      setMonth((m) => m - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (month === 11) {
+      setMonth(0);
+      setYear((y) => y + 1);
+    } else {
+      setMonth((m) => m + 1);
+    }
+  };
+
   const {
     store, monthData, daysCount, toggleCheck,
     addHabit, updateHabit, deleteHabit, moveHabit, setDayMeta, toggleTheme,
@@ -138,13 +157,14 @@ export default function Dashboard() {
 
   // Habit Game Appearance settings from central SyncContext
   const { settings, updateSetting } = useSync();
-  const habitgame = settings.habitgame || { accentColor: "green", cardSize: "medium" };
+  const habitgame = (settings.habitgame as Record<string, unknown> | undefined) || { accentColor: "green", cardSize: "medium", dailyChartType: "bar" };
   const accentColor = (habitgame.accentColor && habitgame.accentColor in ACCENT_COLORS)
     ? (habitgame.accentColor as keyof typeof ACCENT_COLORS)
     : "green";
   const cardSize = (habitgame.cardSize && habitgame.cardSize in CARD_SIZE_CONFIGS)
     ? (habitgame.cardSize as keyof typeof CARD_SIZE_CONFIGS)
     : "medium";
+  const dailyChartType = habitgame.dailyChartType === "line" ? "line" : "bar";
 
   const accentValue = ACCENT_COLORS[accentColor];
   const sizeConfig = CARD_SIZE_CONFIGS[cardSize];
@@ -179,6 +199,13 @@ export default function Dashboard() {
           <span className="font-semibold tracking-tight hidden sm:inline">HabitGame</span>
         </div>
         <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={handlePrevMonth}
+            className="h-7 w-7 grid place-items-center rounded-md border border-white/10 hover:bg-white/5 text-white/70 hover:text-white transition-colors"
+            title="Previous Month"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+          </button>
           <select value={year} onChange={(e) => setYear(+e.target.value)}
             className="h-7 rounded-md bg-white/5 border border-white/10 px-1 sm:px-2 text-xs outline-none">
             {[today.getFullYear() - 1, today.getFullYear(), today.getFullYear() + 1].map((y) => (
@@ -189,6 +216,13 @@ export default function Dashboard() {
             className="h-7 rounded-md bg-white/5 border border-white/10 px-1 sm:px-2 text-xs outline-none">
             {MONTHS.map((m, i) => <option key={m} value={i} className="bg-neutral-900">{m}</option>)}
           </select>
+          <button
+            onClick={handleNextMonth}
+            className="h-7 w-7 grid place-items-center rounded-md border border-white/10 hover:bg-white/5 text-white/70 hover:text-white transition-colors"
+            title="Next Month"
+          >
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
         </div>
         <div className="ml-auto flex items-center gap-1 sm:gap-1.5 shrink-0">
           <SyncStatusIndicator />
@@ -219,7 +253,7 @@ export default function Dashboard() {
                     <button
                       key={colorName}
                       onClick={() => {
-                        updateSetting("habitgame", { accentColor: colorName, cardSize });
+                        updateSetting("habitgame", { ...habitgame, accentColor: colorName });
                       }}
                       className={`h-5 w-5 rounded-full border grid place-items-center transition-all ${
                         accentColor === colorName ? "border-white scale-110" : "border-transparent hover:scale-105"
@@ -241,7 +275,7 @@ export default function Dashboard() {
                     <button
                       key={size}
                       onClick={() => {
-                        updateSetting("habitgame", { accentColor, cardSize: size });
+                        updateSetting("habitgame", { ...habitgame, cardSize: size });
                       }}
                       className={`h-6 rounded border text-[10px] font-medium transition-colors ${
                         cardSize === size
@@ -255,10 +289,32 @@ export default function Dashboard() {
                 </div>
               </div>
 
+              {/* Daily Progress Chart */}
+              <div className="space-y-1.5">
+                <div className="text-[9px] uppercase tracking-wide text-white/50">Daily Progress Chart</div>
+                <div className="grid grid-cols-2 gap-1">
+                  {(["bar", "line"] as const).map((type) => (
+                    <button
+                      key={type}
+                      onClick={() => {
+                        updateSetting("habitgame", { ...habitgame, dailyChartType: type });
+                      }}
+                      className={`h-6 rounded border text-[10px] font-medium transition-colors ${
+                        dailyChartType === type
+                          ? "border-white bg-white/15 text-white"
+                          : "border-white/10 hover:bg-white/5 text-white/60"
+                      }`}
+                    >
+                      {type === "bar" ? "Bar Chart" : "Line Chart"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Reset Appearance */}
               <button
                 onClick={() => {
-                  updateSetting("habitgame", { accentColor: "green", cardSize: "medium" });
+                  updateSetting("habitgame", { accentColor: "green", cardSize: "medium", dailyChartType: "bar" });
                   toast.success("Appearance settings reset!");
                 }}
                 className="w-full h-7 flex items-center justify-center gap-1 text-[10px] font-medium text-red-400 hover:text-red-300 bg-red-950/20 hover:bg-red-950/40 border border-red-500/20 rounded transition-colors"
@@ -292,7 +348,7 @@ export default function Dashboard() {
         } as React.CSSProperties}
       >
         {/* Sidebar */}
-        <div className="col-span-12 lg:col-span-2 row-span-1 lg:row-span-2 rounded-lg border border-white/10 bg-[oklch(0.20_0.006_260)] flex flex-col min-h-[240px] lg:min-h-0">
+        <div className="col-span-12 lg:col-span-2 row-span-1 rounded-lg border border-white/10 bg-[oklch(0.20_0.006_260)] flex flex-col min-h-[240px] lg:min-h-0">
           <div
             className="text-[10px] uppercase tracking-widest text-white/50 shrink-0"
             style={{
@@ -534,13 +590,23 @@ export default function Dashboard() {
         <Panel className="col-span-12 md:col-span-6 lg:col-span-4 row-span-1" title="Daily Progress">
           <div className="h-full min-h-[180px] lg:min-h-0" style={{ padding: "var(--card-gap)" }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="2 2" stroke="oklch(1 0 0 / 6%)" />
-                <XAxis dataKey="day" tick={{ fontSize: 9, fill: "oklch(0.62 0.01 260)" }} interval={2} />
-                <YAxis tick={{ fontSize: 9, fill: "oklch(0.62 0.01 260)" }} domain={[0, 100]} />
-                <Tooltip contentStyle={{ background: "oklch(0.20 0.006 260)", border: "1px solid oklch(1 0 0 / 10%)", fontSize: 11 }} />
-                <Bar dataKey="pct" fill="var(--dashboard-accent)" radius={[2, 2, 0, 0]} />
-              </BarChart>
+              {dailyChartType === "bar" ? (
+                <BarChart data={chartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="2 2" stroke="oklch(1 0 0 / 6%)" />
+                  <XAxis dataKey="day" tick={{ fontSize: 9, fill: "oklch(0.62 0.01 260)" }} interval={2} />
+                  <YAxis tick={{ fontSize: 9, fill: "oklch(0.62 0.01 260)" }} domain={[0, 100]} />
+                  <Tooltip contentStyle={{ background: "oklch(0.20 0.006 260)", border: "1px solid oklch(1 0 0 / 10%)", fontSize: 11 }} />
+                  <Bar dataKey="pct" fill="var(--dashboard-accent)" radius={[2, 2, 0, 0]} />
+                </BarChart>
+              ) : (
+                <LineChart data={chartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="2 2" stroke="oklch(1 0 0 / 6%)" />
+                  <XAxis dataKey="day" tick={{ fontSize: 9, fill: "oklch(0.62 0.01 260)" }} interval={2} />
+                  <YAxis tick={{ fontSize: 9, fill: "oklch(0.62 0.01 260)" }} domain={[0, 100]} />
+                  <Tooltip contentStyle={{ background: "oklch(0.20 0.006 260)", border: "1px solid oklch(1 0 0 / 10%)", fontSize: 11 }} />
+                  <Line type="monotone" dataKey="pct" stroke="var(--dashboard-accent)" strokeWidth={2} dot={false} />
+                </LineChart>
+              )}
             </ResponsiveContainer>
           </div>
         </Panel>
@@ -600,7 +666,7 @@ export default function Dashboard() {
         </Panel>
 
         {/* Wellness + today */}
-        <div className="col-span-12 lg:col-span-2 row-span-1 flex flex-col sm:flex-row lg:flex-col min-h-0" style={{ gap: "var(--card-gap)" }}>
+        <div className="col-span-12 lg:col-span-4 row-span-1 flex flex-col sm:flex-row lg:flex-row min-h-0" style={{ gap: "var(--card-gap)" }}>
           <Panel className="flex-1 min-h-[140px] sm:min-h-0" title="Wellness">
             <div className="h-full min-h-[120px] sm:min-h-0" style={{ padding: "calc(var(--card-gap) * 0.5)" }}>
               <ResponsiveContainer width="100%" height="100%">

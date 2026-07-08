@@ -11,7 +11,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { Plus, Check, Moon, Sun, LayoutDashboard, LogOut, MoreHorizontal } from "lucide-react";
+import { Plus, Check, Moon, Sun, LayoutDashboard, LogOut, MoreHorizontal, Briefcase } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -194,13 +194,30 @@ const Index = () => {
   return (
     <div className="h-screen flex flex-col bg-background">
       <header className="flex items-center gap-2 px-3 sm:px-4 py-2 border-b border-border bg-card/60 backdrop-blur-sm">
-        <div className="h-7 w-7 rounded-md bg-gradient-to-br from-primary to-primary/60 grid place-items-center text-primary-foreground font-bold text-sm shrink-0">E</div>
-        <h1 className="text-xs sm:text-sm font-semibold truncate max-w-[100px] sm:max-w-none">Eisenhower</h1>
+        <button
+          onClick={() => setWorkspace(workspace === "personal" ? "professional" : "personal")}
+          className="flex items-center gap-2 text-foreground hover:text-primary transition-colors cursor-pointer select-none text-left"
+          title={`Switch to ${workspace === "personal" ? "Professional" : "Personal"} Workspace`}
+        >
+          <div className="h-7 w-7 rounded-md bg-gradient-to-br from-primary to-primary/60 grid place-items-center text-primary-foreground font-bold text-sm shrink-0">E</div>
+          <span className="text-xs sm:text-sm font-bold truncate max-w-[120px] sm:max-w-none">
+            {workspace === "personal" ? "Personal" : "Professional"}
+          </span>
+        </button>
         <div className="ml-auto flex items-center gap-1 sm:gap-1.5">
           <SyncStatusIndicator />
           <PomodoroTimer />
           
-          <WorkspaceSwitcher workspace={workspace} onChange={setWorkspace} />
+          <button
+            onClick={() => setWorkspace(workspace === "personal" ? "professional" : "personal")}
+            className="h-7 px-2 flex items-center gap-1 rounded-md border border-border/60 bg-card/70 text-muted-foreground hover:text-foreground hover:bg-card transition-colors shrink-0"
+            title={`Switch to ${workspace === "personal" ? "Professional" : "Personal"} Workspace`}
+          >
+            <Briefcase className="h-3.5 w-3.5" />
+            <span className="text-[11px] font-medium hidden sm:inline">
+              {workspace === "personal" ? "🏠 Personal" : "💼 Professional"}
+            </span>
+          </button>
           
           <button
             onClick={toggleTheme}

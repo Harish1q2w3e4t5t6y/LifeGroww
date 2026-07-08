@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <rect width="32" height="32" rx="8" fill="#0f172a" />
+  <!-- Q1 (Urgent & Important) - Pastel Coral/Red -->
+  <rect x="5" y="5" width="10" height="10" rx="2.5" fill="#f43f5e" />
+  <!-- Q2 (Important, Not Urgent) - Pastel Sky/Blue -->
+  <rect x="17" y="5" width="10" height="10" rx="2.5" fill="#0ea5e9" />
+  <!-- Q3 (Urgent, Not Important) - Pastel Amber/Yellow -->
+  <rect x="5" y="17" width="10" height="10" rx="2.5" fill="#eab308" />
+  <!-- Q4 (Not Urgent, Not Important) - Pastel Sage/Green -->
+  <rect x="17" y="17" width="10" height="10" rx="2.5" fill="#10b981" />
+</svg>
