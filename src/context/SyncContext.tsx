@@ -1,8 +1,14 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { useAuth } from "./AuthContext";
-import type { Task } from "@/lib/types";
+import type { Task, RecurringConfig } from "@/lib/types";
 import type { Store as HabitsStore } from "@/lib/habit-store";
+import {
+  generateScheduledTasks,
+  syncTaskCompletionToHabits,
+  syncHabitCompletionToTasks,
+  toLocalDateString,
+} from "@/lib/recurring-engine";
 
 export type SyncStatus = "loading" | "saving" | "synced" | "failed" | "offline" | "retry";
 
@@ -284,13 +290,41 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Mutation Methods - Wait-for-Server confirmation before updating local state when online
   const updateTasks = useCallback(async (workspace: string, newTasks: Task[]) => {
     if (!isInitialized) return;
+
+    let updatedHabits = habitsRef.current;
+    let habitsChanged = false;
+
+    const oldTasksList = tasksRef.current[workspace] || [];
+    const configs = Array.isArray(settingsRef.current.recurringConfigs) ? (settingsRef.current.recurringConfigs as RecurringConfig[]) : [];
+
+    if (configs.length > 0) {
+      for (const newTask of newTasks) {
+        if (newTask.recurringConfigId) {
+          const oldTask = oldTasksList.find((t) => t.id === newTask.id);
+          const oldCompleted = oldTask ? oldTask.completed : false;
+          if (newTask.completed !== oldCompleted) {
+            const res = syncTaskCompletionToHabits(newTask, newTask.completed, updatedHabits, configs);
+            if (res.changed) {
+              updatedHabits = res.updatedHabits;
+              habitsChanged = true;
+            }
+          }
+        }
+      }
+    }
+
     const updatedTasks = { ...tasksRef.current, [workspace]: newTasks };
-    
+
     // 1. If Offline: update local state immediately and queue dirty flag
     if (!isOnline || !user) {
       setTasksState(updatedTasks);
       saveStateToLocal("tasks", updatedTasks);
       setDirty("tasks", true);
+      if (habitsChanged) {
+        setHabitsState(updatedHabits);
+        saveStateToLocal("habits", updatedHabits);
+        setDirty("habits", true);
+      }
       setSyncStatus("offline");
       return;
     }
@@ -302,7 +336,7 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const payload = {
         user_id: user.id,
         tasks: updatedTasks,
-        habits: habitsRef.current,
+        habits: updatedHabits,
         settings: settingsRef.current
       };
       
@@ -316,6 +350,13 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setTasksState(updatedTasks);
       saveStateToLocal("tasks", updatedTasks);
       setDirty("tasks", false);
+
+      if (habitsChanged) {
+        setHabitsState(updatedHabits);
+        saveStateToLocal("habits", updatedHabits);
+        setDirty("habits", false);
+      }
+
       setSyncStatus("synced");
       setLastSyncTime(new Date());
     } catch (err: unknown) {
@@ -329,11 +370,73 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateHabits = useCallback(async (newHabits: HabitsStore) => {
     if (!isInitialized) return;
     
+    let updatedTasks = { ...tasksRef.current };
+    let tasksChanged = false;
+    const configs = Array.isArray(settingsRef.current.recurringConfigs) ? (settingsRef.current.recurringConfigs as RecurringConfig[]) : [];
+
+    if (configs.length > 0) {
+      const oldHabits = habitsRef.current;
+      const newMonths = newHabits.months || {};
+      const oldMonths = oldHabits.months || {};
+
+      for (const monthKey of Object.keys(newMonths)) {
+        const newMonth = newMonths[monthKey] || { days: {} };
+        const oldMonth = oldMonths[monthKey] || { days: {} };
+
+        for (const dayStr of Object.keys(newMonth.days || {})) {
+          const day = parseInt(dayStr);
+          const newDay = newMonth.days[day] || { checks: {} };
+          const oldDay = oldMonth.days[day] || { checks: {} };
+
+          const newChecks = newDay.checks || {};
+          const oldChecks = oldDay.checks || {};
+
+          for (const habitId of Object.keys(newChecks)) {
+            if (newChecks[habitId] !== oldChecks[habitId]) {
+              const res = syncHabitCompletionToTasks(
+                habitId,
+                day,
+                monthKey,
+                !!newChecks[habitId],
+                updatedTasks,
+                configs
+              );
+              if (res.changed) {
+                updatedTasks = res.updatedTasks;
+                tasksChanged = true;
+              }
+            }
+          }
+          for (const habitId of Object.keys(oldChecks)) {
+            if (newChecks[habitId] === undefined) {
+              const res = syncHabitCompletionToTasks(
+                habitId,
+                day,
+                monthKey,
+                false,
+                updatedTasks,
+                configs
+              );
+              if (res.changed) {
+                updatedTasks = res.updatedTasks;
+                tasksChanged = true;
+              }
+            }
+          }
+        }
+      }
+    }
+
     // 1. If Offline: update local state immediately and queue dirty flag
     if (!isOnline || !user) {
       setHabitsState(newHabits);
       saveStateToLocal("habits", newHabits);
       setDirty("habits", true);
+      if (tasksChanged) {
+        setTasksState(updatedTasks);
+        saveStateToLocal("tasks", updatedTasks);
+        setDirty("tasks", true);
+      }
       setSyncStatus("offline");
       return;
     }
@@ -344,7 +447,7 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const payload = {
         user_id: user.id,
-        tasks: tasksRef.current,
+        tasks: updatedTasks,
         habits: newHabits,
         settings: settingsRef.current
       };
@@ -359,6 +462,13 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setHabitsState(newHabits);
       saveStateToLocal("habits", newHabits);
       setDirty("habits", false);
+
+      if (tasksChanged) {
+        setTasksState(updatedTasks);
+        saveStateToLocal("tasks", updatedTasks);
+        setDirty("tasks", false);
+      }
+
       setSyncStatus("synced");
       setLastSyncTime(new Date());
     } catch (err: unknown) {
@@ -412,6 +522,27 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLastError(errMsg || "Write failed");
     }
   }, [isOnline, user, isInitialized]);
+
+  // Trigger scheduler on settings changes or init
+  const lastConfigsHash = useRef("");
+  useEffect(() => {
+    if (!isInitialized) return;
+    const configs = Array.isArray(settings.recurringConfigs) ? (settings.recurringConfigs as RecurringConfig[]) : [];
+    const hash = JSON.stringify(configs);
+    if (hash === lastConfigsHash.current) return;
+    lastConfigsHash.current = hash;
+
+    if (configs.length === 0) return;
+    const todayStr = toLocalDateString(new Date());
+    const { updatedTasks, generatedCount } = generateScheduledTasks(tasksRef.current, configs, todayStr);
+
+    if (generatedCount > 0) {
+      console.log(`[Scheduler] Generated ${generatedCount} recurring tasks.`);
+      setTasksState(updatedTasks);
+      saveStateToLocal("tasks", updatedTasks);
+      setDirty("tasks", true);
+    }
+  }, [isInitialized, settings.recurringConfigs]);
 
   const forceSync = async () => {
     if (user && isOnline && !syncInProgress.current && isInitialized) {

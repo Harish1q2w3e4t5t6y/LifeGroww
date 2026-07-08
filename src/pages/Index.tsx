@@ -11,8 +11,10 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { Plus, Check, Moon, Sun, LayoutDashboard, LogOut, MoreHorizontal, Briefcase } from "lucide-react";
+import { Plus, Check, Moon, Sun, LayoutDashboard, LogOut, MoreHorizontal, Briefcase, Home, Layers, CalendarClock } from "lucide-react";
 import { Link } from "react-router-dom";
+import { RecurringTasksManagerDialog } from "@/components/RecurringTasksManagerDialog";
+import type { Habit } from "@/lib/types";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useTasks } from "@/hooks/useTasks";
@@ -29,6 +31,7 @@ import { useDeadlineWatcher, useHourlyChime } from "@/hooks/useNotifications";
 import { useAuth } from "@/context/AuthContext";
 import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useSync } from "@/context/SyncContext";
 
 
 const bgColor: Record<Quadrant, string> = {
@@ -165,6 +168,26 @@ const Index = () => {
   const { theme, toggle: toggleTheme } = useTheme();
   const [activeId, setActiveId] = useState<string | null>(null);
 
+  const { habits } = useSync();
+  const [managerOpen, setManagerOpen] = useState(false);
+
+  const habitsList = useMemo(() => {
+    const list: Habit[] = [];
+    const ids = new Set<string>();
+    for (const monthKey of Object.keys(habits.months || {})) {
+      const m = habits.months[monthKey];
+      if (m && m.habits) {
+        for (const h of m.habits) {
+          if (!ids.has(h.id)) {
+            ids.add(h.id);
+            list.push(h);
+          }
+        }
+      }
+    }
+    return list;
+  }, [habits]);
+
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -195,29 +218,65 @@ const Index = () => {
     <div className="h-screen flex flex-col bg-background">
       <header className="flex items-center gap-2 px-3 sm:px-4 py-2 border-b border-border bg-card/60 backdrop-blur-sm">
         <button
-          onClick={() => setWorkspace(workspace === "personal" ? "professional" : "personal")}
+          onClick={() => {
+            const nextMap: Record<WorkspaceId, WorkspaceId> = {
+              professional: "personal",
+              personal: "all",
+              all: "professional",
+            };
+            setWorkspace(nextMap[workspace]);
+          }}
           className="flex items-center gap-2 text-foreground hover:text-primary transition-colors cursor-pointer select-none text-left"
-          title={`Switch to ${workspace === "personal" ? "Professional" : "Personal"} Workspace`}
+          title="Cycle through workspaces"
         >
           <div className="h-7 w-7 rounded-md bg-gradient-to-br from-primary to-primary/60 grid place-items-center text-primary-foreground font-bold text-sm shrink-0">E</div>
           <span className="text-xs sm:text-sm font-bold truncate max-w-[120px] sm:max-w-none">
-            {workspace === "personal" ? "Personal" : "Professional"}
+            {workspace === "personal" ? "Personal" : workspace === "professional" ? "Professional" : "Both"}
           </span>
         </button>
-        <div className="ml-auto flex items-center gap-1 sm:gap-1.5">
+        <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
           <SyncStatusIndicator />
           <PomodoroTimer />
           
-          <button
-            onClick={() => setWorkspace(workspace === "personal" ? "professional" : "personal")}
-            className="h-7 px-2 flex items-center gap-1 rounded-md border border-border/60 bg-card/70 text-muted-foreground hover:text-foreground hover:bg-card transition-colors shrink-0"
-            title={`Switch to ${workspace === "personal" ? "Professional" : "Personal"} Workspace`}
-          >
-            <Briefcase className="h-3.5 w-3.5" />
-            <span className="text-[11px] font-medium hidden sm:inline">
-              {workspace === "personal" ? "🏠 Personal" : "💼 Professional"}
-            </span>
-          </button>
+          {/* Workspace Segmented Button Group */}
+          <div className="flex items-center rounded-md border border-border bg-card/70 p-0.5 shrink-0">
+            <button
+              onClick={() => setWorkspace("professional")}
+              className={cn(
+                "h-6 w-7 grid place-items-center rounded transition-colors",
+                workspace === "professional"
+                  ? "bg-primary text-primary-foreground font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+              title="Professional Workspace"
+            >
+              <Briefcase className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={() => setWorkspace("personal")}
+              className={cn(
+                "h-6 w-7 grid place-items-center rounded transition-colors",
+                workspace === "personal"
+                  ? "bg-primary text-primary-foreground font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+              title="Personal Workspace"
+            >
+              <Home className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={() => setWorkspace("all")}
+              className={cn(
+                "h-6 w-7 grid place-items-center rounded transition-colors",
+                workspace === "all"
+                  ? "bg-primary text-primary-foreground font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+              title="Show Both Workspaces"
+            >
+              <Layers className="h-3.5 w-3.5" />
+            </button>
+          </div>
           
           <button
             onClick={toggleTheme}
@@ -226,6 +285,14 @@ const Index = () => {
             title={theme === "dark" ? "Light mode" : "Dark mode"}
           >
             {theme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+          </button>
+
+          <button
+            onClick={() => setManagerOpen(true)}
+            className="h-7 w-7 grid place-items-center rounded-md border border-border/60 bg-card/70 text-muted-foreground hover:text-foreground hover:bg-card transition-colors shrink-0"
+            title="Recurring Tasks Manager"
+          >
+            <CalendarClock className="h-3.5 w-3.5" />
           </button>
 
           {/* Desktop/Tablet secondary controls */}
@@ -323,6 +390,12 @@ const Index = () => {
         </DndContext>
 
       </main>
+
+      <RecurringTasksManagerDialog
+        open={managerOpen}
+        onOpenChange={setManagerOpen}
+        habitsList={habitsList}
+      />
     </div>
   );
 };

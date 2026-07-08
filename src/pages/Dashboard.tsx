@@ -7,7 +7,7 @@ import {
 import {
   ArrowLeft, Plus, Pencil, Trash2, ArrowUp, ArrowDown, Check,
   Flame, Zap, Moon, Sun, Settings as SettingsIcon,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, RefreshCw,
 } from "lucide-react";
 import { useHabitStore, computeStats } from "@/lib/habit-store";
 import { useAppSettings, getReportLayoutRows } from "@/hooks/useAppSettings";
@@ -15,6 +15,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { toast } from "sonner";
 import { useSync } from "@/context/SyncContext";
 import { SyncStatusIndicator } from "@/components/SyncStatusIndicator";
+import { RecurringConfigDialog } from "@/components/RecurringConfigDialog";
+import { cn } from "@/lib/utils";
+import type { RecurringConfig } from "@/lib/types";
 
 const EMOJI_SUGGESTIONS = ["💪","📚","🏃","💧","🧘","💰","🍎","🎯","💻","😴","⏰","🥗","🚴","☕","✍️","🎨","🌱","🔥"];
 
@@ -148,6 +151,12 @@ export default function Dashboard() {
   const [editValue, setEditValue] = useState("");
   const [editEmoji, setEditEmoji] = useState("");
 
+  // States for habit & custom task synchronization dialogs
+  const [syncDialogOpen, setSyncDialogOpen] = useState(false);
+  const [syncHabitId, setSyncHabitId] = useState<string | undefined>(undefined);
+  const [syncHabitName, setSyncHabitName] = useState<string | undefined>(undefined);
+  const [syncInitialConfig, setSyncInitialConfig] = useState<RecurringConfig | undefined>(undefined);
+
   const { reportLayout } = useAppSettings();
   const gridRows = getReportLayoutRows(reportLayout);
 
@@ -157,6 +166,53 @@ export default function Dashboard() {
 
   // Habit Game Appearance settings from central SyncContext
   const { settings, updateSetting } = useSync();
+  const configs = Array.isArray(settings.recurringConfigs) ? (settings.recurringConfigs as RecurringConfig[]) : [];
+
+  const handleSaveSyncConfig = async (newConfig: Omit<RecurringConfig, "id">) => {
+    let updatedConfigs: RecurringConfig[];
+
+    if (newConfig.habitId) {
+      const existingIdx = configs.findIndex((c) => c.habitId === newConfig.habitId);
+      if (existingIdx !== -1) {
+        const updated = { ...configs[existingIdx], ...newConfig };
+        updatedConfigs = [...configs];
+        updatedConfigs[existingIdx] = updated;
+      } else {
+        const created: RecurringConfig = {
+          id: crypto.randomUUID(),
+          ...newConfig,
+        };
+        updatedConfigs = [...configs, created];
+      }
+    } else {
+      if (syncInitialConfig && syncInitialConfig.id) {
+        const existingIdx = configs.findIndex((c) => c.id === syncInitialConfig.id);
+        if (existingIdx !== -1) {
+          const updated = { ...configs[existingIdx], ...newConfig };
+          updatedConfigs = [...configs];
+          updatedConfigs[existingIdx] = updated;
+        } else {
+          updatedConfigs = [...configs];
+        }
+      } else {
+        const created: RecurringConfig = {
+          id: crypto.randomUUID(),
+          ...newConfig,
+        };
+        updatedConfigs = [...configs, created];
+      }
+    }
+
+    await updateSetting("recurringConfigs", updatedConfigs);
+    toast.success("Recurring configuration saved!");
+  };
+
+  const handleDeleteSyncConfig = async (id: string) => {
+    const updatedConfigs = configs.filter((c) => c.id !== id);
+    await updateSetting("recurringConfigs", updatedConfigs);
+    toast.success("Recurring configuration deleted.");
+  };
+
   const habitgame = (settings.habitgame as Record<string, unknown> | undefined) || { accentColor: "green", cardSize: "medium", dailyChartType: "bar" };
   const accentColor = (habitgame.accentColor && habitgame.accentColor in ACCENT_COLORS)
     ? (habitgame.accentColor as keyof typeof ACCENT_COLORS)
@@ -408,6 +464,24 @@ export default function Dashboard() {
                     </button>
                   ) : (
                     <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 text-white/50">
+                      <button
+                        onClick={() => {
+                          setSyncHabitId(h.id);
+                          setSyncHabitName(h.name);
+                          const activeConfig = configs.find((c) => c.habitId === h.id);
+                          setSyncInitialConfig(activeConfig);
+                          setSyncDialogOpen(true);
+                        }}
+                        className={cn(
+                          "p-0.5 transition-colors",
+                          configs.find((c) => c.habitId === h.id && c.enabled)
+                            ? "text-[var(--dashboard-accent)] hover:opacity-80"
+                            : "hover:text-white"
+                        )}
+                        title="Sync with matrix"
+                      >
+                        <RefreshCw className="h-3 w-3" />
+                      </button>
                       <button onClick={() => moveHabit(h.id, -1)} className="hover:text-white p-0.5"><ArrowUp className="h-3 w-3" /></button>
                       <button onClick={() => moveHabit(h.id, 1)} className="hover:text-white p-0.5"><ArrowDown className="h-3 w-3" /></button>
                       <button
@@ -721,7 +795,18 @@ export default function Dashboard() {
             </div>
           </Panel>
         </div>
+
       </div>
+
+      <RecurringConfigDialog
+        open={syncDialogOpen}
+        onOpenChange={setSyncDialogOpen}
+        habitId={syncHabitId}
+        habitName={syncHabitName}
+        initialConfig={syncInitialConfig}
+        habitsList={monthData.habits}
+        onSave={handleSaveSyncConfig}
+      />
     </div>
   );
 }
