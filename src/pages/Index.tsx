@@ -11,7 +11,7 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { Plus, Check, Moon, Sun, LayoutDashboard, LogOut, MoreHorizontal, Briefcase, Home, Layers, CalendarClock } from "lucide-react";
+import { Plus, Check, Moon, Sun, LayoutDashboard, LogOut, MoreHorizontal, Briefcase, Home, Layers, CalendarClock, Download } from "lucide-react";
 import { Link } from "react-router-dom";
 import { RecurringTasksManagerDialog } from "@/components/RecurringTasksManagerDialog";
 import type { Habit } from "@/lib/types";
@@ -168,8 +168,26 @@ const Index = () => {
   const { theme, toggle: toggleTheme } = useTheme();
   const [activeId, setActiveId] = useState<string | null>(null);
 
-  const { habits } = useSync();
+  const { habits, tasks: syncTasks, settings: syncSettings } = useSync();
   const [managerOpen, setManagerOpen] = useState(false);
+
+  const handleExport = () => {
+    const data = {
+      tasks: syncTasks,
+      habits: habits,
+      settings: syncSettings,
+      exportDate: new Date().toISOString()
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `eisenhower-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   const habitsList = useMemo(() => {
     const list: Habit[] = [];
@@ -293,6 +311,14 @@ const Index = () => {
             title="Recurring Tasks Manager"
           >
             <CalendarClock className="h-3.5 w-3.5" />
+          </button>
+
+          <button
+            onClick={handleExport}
+            className="h-7 w-7 grid place-items-center rounded-md border border-border/60 bg-card/70 text-muted-foreground hover:text-foreground hover:bg-card transition-colors shrink-0"
+            title="Export All Data"
+          >
+            <Download className="h-3.5 w-3.5" />
           </button>
 
           {/* Desktop/Tablet secondary controls */}
