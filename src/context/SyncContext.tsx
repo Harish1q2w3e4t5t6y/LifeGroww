@@ -20,8 +20,9 @@ interface SyncContextType {
   lastSyncTime: Date | null;
   lastError: string | null;
   isOnline: boolean;
+  isInitialized: boolean;
   pendingOps: string[];
-  
+
   updateTasks: (workspace: string, newTasks: Task[]) => Promise<void>;
   updateHabits: (newHabits: HabitsStore) => Promise<void>;
   updateSetting: (key: string, value: unknown) => Promise<void>;
@@ -82,6 +83,10 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const syncInProgress = useRef<boolean>(false);
   const retryTimer = useRef<number | null>(null);
 
+  // Stores the last habits shape confirmed from Supabase — used for defensive payload validation.
+  // This prevents any code path from reducing habit data back to zero unexpectedly.
+  const lastKnownServerHabits = useRef<HabitsStore | null>(null);
+
   // Refs to store the latest state, allowing callbacks to bypass dependency rebuild loops
   const tasksRef = useRef(tasks);
   const habitsRef = useRef(habits);
@@ -128,7 +133,7 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (keysToSync.length === 0) return;
     
     syncInProgress.current = true;
-    setSyncStatus("retry");
+    setSyncStatus("saving");
     setLastError(null);
 
     try {
@@ -232,24 +237,65 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (data) {
           const localDirty = dirtyRef.current;
-          
-          setTasksState(prev => {
-            const next = localDirty.tasks ? prev : (data.tasks || { personal: [], professional: [] });
-            saveStateToLocal("tasks", next);
-            return next;
-          });
-          
-          setHabitsState(prev => {
-            const next = localDirty.habits ? prev : (data.habits || { months: {}, theme: "dark" });
-            saveStateToLocal("habits", next);
-            return next;
-          });
-          
-          setSettingsState(prev => {
-            const next = localDirty.settings ? prev : (data.settings || { appSettings: { accent: "blue", reportLayout: "compact", showCompleted: true }, workspace: "professional", theme: "dark" });
-            saveStateToLocal("settings", next);
-            return next;
-          });
+
+          // SAFETY FIX: When dirty flags are set, read the pending offline changes from
+          // localStorage — where they were saved by the offline mutation path.
+          // NEVER use React's `prev` state here: at startup `prev` is the empty default
+          // { months: {} }, not the user's actual offline data. Using `prev` was the root
+          // cause of the data-erasure race condition.
+          const pendingTasks: Record<string, Task[]> | null = localDirty.tasks ? (() => {
+            try {
+              const p = JSON.parse(localStorage.getItem(KEYS.tasks("personal")) || "[]");
+              const r = JSON.parse(localStorage.getItem(KEYS.tasks("professional")) || "[]");
+              return { personal: Array.isArray(p) ? p : [], professional: Array.isArray(r) ? r : [] };
+            } catch { return null; }
+          })() : null;
+
+          const pendingHabits: HabitsStore | null = localDirty.habits ? (() => {
+            try {
+              const h = JSON.parse(localStorage.getItem(KEYS.habits) || "null");
+              return (h && typeof h === "object" && h.months) ? (h as HabitsStore) : null;
+            } catch { return null; }
+          })() : null;
+
+          // For settings: always start from server data (to preserve recurringConfigs),
+          // then overlay only the locally-changed UI keys on top if dirty.
+          const serverSettings = (data.settings as Record<string, unknown> | null) ?? {
+            appSettings: { accent: "blue", reportLayout: "compact", showCompleted: true },
+            workspace: "professional",
+            theme: "dark"
+          };
+          const pendingSettings: Record<string, unknown> = localDirty.settings ? (() => {
+            try {
+              const merged: Record<string, unknown> = { ...serverSettings };
+              const appSettings = localStorage.getItem(KEYS.settings);
+              if (appSettings) merged.appSettings = JSON.parse(appSettings);
+              const workspace = localStorage.getItem(KEYS.workspace);
+              if (workspace) merged.workspace = workspace;
+              const theme = localStorage.getItem(KEYS.theme);
+              if (theme) merged.theme = theme;
+              return merged;
+            } catch { return serverSettings; }
+          })() : serverSettings;
+
+          const nextTasks = pendingTasks ?? ((data.tasks as Record<string, Task[]> | null) ?? { personal: [], professional: [] });
+          const nextHabits = pendingHabits ?? ((data.habits as HabitsStore | null) ?? { months: {}, theme: "dark" });
+          const nextSettings = pendingSettings;
+
+          setTasksState(nextTasks);
+          saveStateToLocal("tasks", nextTasks);
+
+          setHabitsState(nextHabits);
+          saveStateToLocal("habits", nextHabits);
+
+          setSettingsState(nextSettings);
+          saveStateToLocal("settings", nextSettings);
+
+          // Record what the server currently holds so the safety guard in updateHabits
+          // can refuse any write that would unexpectedly reduce habit data to zero.
+          if (data.habits) {
+            lastKnownServerHabits.current = data.habits as HabitsStore;
+          }
 
           if (!localDirty.tasks && !localDirty.habits && !localDirty.settings) {
             setSyncStatus("synced");
@@ -258,7 +304,7 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setLastSyncTime(now);
           localStorage.setItem(KEYS.lastSync, now.toISOString());
         } else {
-          // Row does not exist: Initialize React states to defaults.
+          // Row does not exist: new user. Initialize React states to defaults.
           // STARTUP SAFETY: DO NOT WRITE (NO UPDATE, NO UPSERT, NO SAVE) during startup.
           setTasksState({ personal: [], professional: [] });
           setHabitsState({ months: {}, theme: "dark" });
@@ -442,6 +488,26 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     // 2. If Online: Attempt server update FIRST. Wait for Supabase response before updating UI.
+
+    // DEFENSIVE PAYLOAD GUARD: Refuse to write if this update would reduce habit months from
+    // a known non-zero count to zero. This catches any remaining edge-case where stale or
+    // empty React state reaches this function. A legitimate user action can only ever ADD
+    // or MODIFY months — never silently erase all of them.
+    const knownServer = lastKnownServerHabits.current;
+    if (knownServer) {
+      const knownMonths = Object.keys(knownServer.months || {}).length;
+      const newMonths = Object.keys(newHabits.months || {}).length;
+      if (knownMonths > 1 && newMonths === 0) {
+        console.error(
+          `[SafetyGuard] ❌ BLOCKED updateHabits: payload would reduce habit months from ${knownMonths} → 0.`,
+          "Aborting to prevent data loss. Investigate the call stack above."
+        );
+        setSyncStatus("failed");
+        setLastError("Safety guard: refusing to overwrite existing habit data with empty state. Please refresh.");
+        return;
+      }
+    }
+
     setSyncStatus("saving");
     setLastError(null);
     try {
@@ -560,6 +626,7 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
         lastSyncTime,
         lastError,
         isOnline,
+        isInitialized,
         pendingOps: getPendingOps(),
         updateTasks,
         updateHabits,

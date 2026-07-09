@@ -34,14 +34,25 @@ function findLatestMonthHabits(months: Record<string, MonthData>): Habit[] | nul
 }
 
 export function useHabitStore(year: number, month: number) {
-  const { habits: store, updateHabits, syncStatus } = useSync();
+  const { habits: store, updateHabits, syncStatus, isInitialized } = useSync();
   const key = monthKey(year, month);
   const daysCount = new Date(year, month + 1, 0).getDate();
 
-  // ensure month data exists — but ONLY seed after sync engine has fully loaded
-  // and NEVER seed during loading/saving to prevent overwriting server data
+  // Seed the current month's habit list if it does not yet exist in the store.
+  //
+  // CRITICAL SAFETY RULES — this effect must NEVER fire:
+  //   1. Before isInitialized is true  → React state may still hold empty defaults,
+  //      not the data fetched from Supabase. Writing at this point would erase the
+  //      user's real server data (the confirmed root cause of the production bug).
+  //   2. While any data operation is in progress (loading / saving / retry) → an
+  //      in-flight request may have stale or partial state. Wait for it to settle.
+  //
+  // Only when isInitialized is true AND syncStatus is "synced" / "failed" / "offline"
+  // can we be certain that store reflects confirmed server data (or confirmed no-data
+  // for a new user), making it safe to write a new month scaffold.
   useEffect(() => {
-    if (syncStatus === "loading" || syncStatus === "saving") return;
+    if (!isInitialized) return;
+    if (syncStatus === "loading" || syncStatus === "saving" || syncStatus === "retry") return;
     if (!store.months[key]) {
       const seed = findLatestMonthHabits(store.months) ?? DEFAULT_HABITS;
       const updated: Store = {
@@ -53,7 +64,7 @@ export function useHabitStore(year: number, month: number) {
       };
       updateHabits(updated);
     }
-  }, [key, store, updateHabits, syncStatus]);
+  }, [key, store, updateHabits, syncStatus, isInitialized]);
 
   const monthData: MonthData = store.months[key] ?? { habits: [], days: {} };
 
