@@ -35,14 +35,14 @@
     --radius: 0.875rem;
 
     /* Quadrant pastels - light */
-    --q1: 8 80% 88%;        /* coral - urgent important */
-    --q1-foreground: 8 60% 32%;
+    --q1: 140 45% 86%;      /* sage - urgent important */
+    --q1-foreground: 140 40% 25%;
     --q2: 200 70% 88%;      /* sky - important not urgent */
     --q2-foreground: 200 60% 28%;
     --q3: 45 85% 86%;       /* warm amber */
     --q3-foreground: 35 65% 30%;
-    --q4: 140 45% 86%;      /* sage */
-    --q4-foreground: 140 40% 25%;
+    --q4: 8 80% 88%;        /* coral */
+    --q4-foreground: 8 60% 32%;
 
     --shadow-card: 0 1px 2px hsl(220 30% 18% / 0.04), 0 8px 24px -8px hsl(220 30% 18% / 0.08);
     --shadow-float: 0 10px 30px -10px hsl(220 60% 50% / 0.45);
@@ -77,14 +77,14 @@
     --input: 224 20% 20%;
     --ring: 220 80% 65%;
 
-    --q1: 8 45% 24%;
-    --q1-foreground: 8 80% 82%;
+    --q1: 140 30% 20%;
+    --q1-foreground: 140 50% 80%;
     --q2: 200 45% 22%;
     --q2-foreground: 200 75% 82%;
     --q3: 38 45% 22%;
     --q3-foreground: 45 85% 80%;
-    --q4: 140 30% 20%;
-    --q4-foreground: 140 50% 80%;
+    --q4: 8 45% 24%;
+    --q4-foreground: 8 80% 82%;
 
     --shadow-card: 0 1px 2px hsl(0 0% 0% / 0.4), 0 8px 24px -8px hsl(0 0% 0% / 0.5);
     --shadow-float: 0 10px 30px -10px hsl(220 80% 65% / 0.55);
@@ -129,24 +129,24 @@
    Professional keeps the base palette.
    ============================================================ */
 :root.workspace-personal {
-  --q1: 340 55% 92%;
-  --q1-foreground: 340 50% 35%;
+  --q1: 160 35% 90%;
+  --q1-foreground: 160 40% 28%;
   --q2: 260 45% 92%;
   --q2-foreground: 260 45% 35%;
   --q3: 30 60% 92%;
   --q3-foreground: 30 55% 32%;
-  --q4: 160 35% 90%;
-  --q4-foreground: 160 40% 28%;
+  --q4: 340 55% 92%;
+  --q4-foreground: 340 50% 35%;
 }
 .dark.workspace-personal {
-  --q1: 340 30% 22%;
-  --q1-foreground: 340 60% 82%;
+  --q1: 160 20% 18%;
+  --q1-foreground: 160 45% 80%;
   --q2: 260 25% 22%;
   --q2-foreground: 260 55% 82%;
   --q3: 30 35% 20%;
   --q3-foreground: 30 70% 80%;
-  --q4: 160 20% 18%;
-  --q4-foreground: 160 45% 80%;
+  --q4: 340 30% 22%;
+  --q4-foreground: 340 60% 82%;
 }
 
 /* ============================================================
