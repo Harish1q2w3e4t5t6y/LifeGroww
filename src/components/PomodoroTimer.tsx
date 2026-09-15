@@ -32,9 +32,9 @@ function loadState(): PomoState {
     mode: "focus",
     running: false,
     endsAt: null,
-    remaining: 25 * 60,
+    remaining: 30 * 60,
     muted: false,
-    focusMin: 25,
+    focusMin: 30,
     breakMin: 5,
   };
   if (typeof window === "undefined") return defaults;
@@ -43,7 +43,7 @@ function loadState(): PomoState {
     if (!raw) return defaults;
     const parsed = JSON.parse(raw) as Partial<PomoState>;
     const mode: Mode = parsed.mode === "break" ? "break" : "focus";
-    const focusMin = typeof parsed.focusMin === "number" && parsed.focusMin > 0 ? parsed.focusMin : 25;
+    const focusMin = typeof parsed.focusMin === "number" && parsed.focusMin > 0 ? parsed.focusMin : 30;
     const breakMin = typeof parsed.breakMin === "number" && parsed.breakMin > 0 ? parsed.breakMin : 5;
     return {
       mode,
@@ -198,7 +198,7 @@ export function PomodoroTimer() {
 
   const updateDurations = useCallback((focusMin: number, breakMin: number) => {
     setState((s) => {
-      const f = Math.max(1, Math.min(180, Math.floor(focusMin) || 25));
+      const f = Math.max(1, Math.min(180, Math.floor(focusMin) || 30));
       const b = Math.max(1, Math.min(60, Math.floor(breakMin) || 5));
       const newRemaining = s.running
         ? s.remaining
