@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -72,6 +72,8 @@ const ringColor: Record<Quadrant, string> = {
 
 function Quad({
   quadrant,
+  index,
+  mounted,
   tasks,
   onToggle,
   onDelete,
@@ -83,6 +85,8 @@ function Quad({
   activeId,
 }: {
   quadrant: Quadrant;
+  index: number;
+  mounted: boolean;
   tasks: Task[];
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
@@ -109,23 +113,37 @@ function Quad({
     <div
       ref={setNodeRef}
       className={cn(
-        "relative flex flex-col h-auto md:h-full min-h-[220px] md:min-h-0 overflow-hidden transition-all p-4",
+        "relative flex flex-col h-auto md:h-full min-h-[220px] md:min-h-0 overflow-hidden p-4",
         "rounded-xl border border-border/60 border-t-2 shadow-card",
+        "transition-[opacity,transform,box-shadow] duration-500 ease-out hover:-translate-y-0.5 hover:shadow-lg",
         bgGradient[quadrant],
         borderTopColor[quadrant],
-        isOver && cn("ring-2 ring-inset", ringColor[quadrant])
+        isOver && cn("ring-2 ring-inset", ringColor[quadrant]),
+        mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"
       )}
+      style={{ transitionDelay: mounted ? `${index * 90}ms` : "0ms" }}
     >
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2.5">
-          <div className={cn("h-8 w-8 rounded-lg grid place-items-center shrink-0 text-white", badgeColor[quadrant])}>
+          <div
+            className={cn(
+              "h-8 w-8 rounded-lg grid place-items-center shrink-0 text-white",
+              badgeColor[quadrant],
+              quadrant === "q1" && "animate-[urgent-pulse_2.4s_ease-in-out_infinite]"
+            )}
+          >
             {(() => {
               const Icon = quadrantIcon[quadrant];
               return <Icon className="h-4 w-4" strokeWidth={2.25} />;
             })()}
           </div>
           <div>
-            <h2 className="text-lg md:text-xl font-bold tracking-tight text-foreground/85">{meta.title}</h2>
+            <h2
+              className="text-xl md:text-2xl font-bold tracking-tight text-foreground"
+              style={{ textShadow: `0 0 24px hsl(var(--${quadrant}) / 0.35)` }}
+            >
+              {meta.title}
+            </h2>
             <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{meta.subtitle}</p>
           </div>
         </div>
@@ -140,7 +158,7 @@ function Quad({
 
       <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
         {adding && (
-          <div className="flex items-center gap-1.5 bg-card rounded-md px-2 py-1.5 border border-primary/40 shadow-sm">
+          <div className="flex items-center gap-1.5 bg-card rounded-md px-2 py-1.5 border border-primary/40 shadow-sm animate-[task-row-in_0.2s_ease-out]">
             <Input
               autoFocus
               value={value}
@@ -200,6 +218,11 @@ const Index = () => {
   useHourlyChime();
   const { theme, toggle: toggleTheme } = useTheme();
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setMounted(true), 30);
+    return () => clearTimeout(t);
+  }, []);
 
   const { habits, tasks: syncTasks, settings: syncSettings } = useSync();
   const [managerOpen, setManagerOpen] = useState(false);
@@ -267,9 +290,9 @@ const Index = () => {
 
   return (
     <div className="relative h-screen flex flex-col bg-background overflow-hidden">
-      {/* Ambient glow — one quiet accent behind the whole page, not per-section decoration */}
+      {/* Ambient glow — one quiet accent behind the whole page, not per-section decoration. Drifts very slowly so it reads as alive without pulling focus off the tasks. */}
       <div
-        className="pointer-events-none absolute -top-1/4 left-1/2 -translate-x-1/2 w-[140vw] h-[70vh] rounded-full opacity-40 blur-3xl"
+        className="pointer-events-none absolute -top-1/4 left-1/2 w-[140vw] h-[70vh] rounded-full blur-3xl animate-[ambient-drift_18s_ease-in-out_infinite]"
         style={{ background: "radial-gradient(circle, hsl(var(--primary) / 0.12) 0%, transparent 65%)" }}
         aria-hidden="true"
       />
@@ -302,14 +325,24 @@ const Index = () => {
 
           <div className="hidden sm:block w-px h-5 bg-border/70 shrink-0" aria-hidden="true" />
 
-          {/* Workspace Segmented Button Group */}
-          <div className="flex items-center rounded-md border border-border bg-card/70 p-0.5 shrink-0">
+          {/* Workspace Segmented Button Group — a sliding pill tracks the active
+              choice instead of the background instantly swapping buttons. */}
+          <div className="relative flex items-center rounded-md border border-border bg-card/70 p-0.5 shrink-0">
+            <div
+              className="absolute top-0.5 left-0.5 h-6 w-7 rounded bg-primary transition-transform duration-300 ease-out"
+              style={{
+                transform: `translateX(${
+                  workspace === "professional" ? 0 : workspace === "personal" ? 28 : 56
+                }px)`,
+              }}
+              aria-hidden="true"
+            />
             <button
               onClick={() => setWorkspace("professional")}
               className={cn(
-                "h-6 w-7 grid place-items-center rounded transition-colors",
+                "relative z-10 h-6 w-7 grid place-items-center rounded transition-colors",
                 workspace === "professional"
-                  ? "bg-primary text-primary-foreground font-semibold"
+                  ? "text-primary-foreground font-semibold"
                   : "text-muted-foreground hover:text-foreground"
               )}
               title="Professional Workspace"
@@ -319,9 +352,9 @@ const Index = () => {
             <button
               onClick={() => setWorkspace("personal")}
               className={cn(
-                "h-6 w-7 grid place-items-center rounded transition-colors",
+                "relative z-10 h-6 w-7 grid place-items-center rounded transition-colors",
                 workspace === "personal"
-                  ? "bg-primary text-primary-foreground font-semibold"
+                  ? "text-primary-foreground font-semibold"
                   : "text-muted-foreground hover:text-foreground"
               )}
               title="Personal Workspace"
@@ -331,9 +364,9 @@ const Index = () => {
             <button
               onClick={() => setWorkspace("all")}
               className={cn(
-                "h-6 w-7 grid place-items-center rounded transition-colors",
+                "relative z-10 h-6 w-7 grid place-items-center rounded transition-colors",
                 workspace === "all"
-                  ? "bg-primary text-primary-foreground font-semibold"
+                  ? "text-primary-foreground font-semibold"
                   : "text-muted-foreground hover:text-foreground"
               )}
               title="Show Both Workspaces"
@@ -443,10 +476,10 @@ const Index = () => {
       <main className="flex-1 relative z-10 overflow-y-auto md:overflow-hidden">
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
           <div className="grid grid-cols-1 md:grid-cols-2 md:grid-rows-2 gap-3 p-3 h-auto md:h-full">
-            <Quad quadrant="q1" tasks={byQuadrant.q1} onToggle={toggleTask} onDelete={removeTask} onRename={renameTask} onSetStatus={setTaskStatus} onSetDueDate={setTaskDueDate} onSetPriority={setTaskPriority} onAdd={handleAdd} activeId={activeId} />
-            <Quad quadrant="q2" tasks={byQuadrant.q2} onToggle={toggleTask} onDelete={removeTask} onRename={renameTask} onSetStatus={setTaskStatus} onSetDueDate={setTaskDueDate} onSetPriority={setTaskPriority} onAdd={handleAdd} activeId={activeId} />
-            <Quad quadrant="q3" tasks={byQuadrant.q3} onToggle={toggleTask} onDelete={removeTask} onRename={renameTask} onSetStatus={setTaskStatus} onSetDueDate={setTaskDueDate} onSetPriority={setTaskPriority} onAdd={handleAdd} activeId={activeId} />
-            <Quad quadrant="q4" tasks={byQuadrant.q4} onToggle={toggleTask} onDelete={removeTask} onRename={renameTask} onSetStatus={setTaskStatus} onSetDueDate={setTaskDueDate} onSetPriority={setTaskPriority} onAdd={handleAdd} activeId={activeId} />
+            <Quad quadrant="q1" index={0} mounted={mounted} tasks={byQuadrant.q1} onToggle={toggleTask} onDelete={removeTask} onRename={renameTask} onSetStatus={setTaskStatus} onSetDueDate={setTaskDueDate} onSetPriority={setTaskPriority} onAdd={handleAdd} activeId={activeId} />
+            <Quad quadrant="q2" index={1} mounted={mounted} tasks={byQuadrant.q2} onToggle={toggleTask} onDelete={removeTask} onRename={renameTask} onSetStatus={setTaskStatus} onSetDueDate={setTaskDueDate} onSetPriority={setTaskPriority} onAdd={handleAdd} activeId={activeId} />
+            <Quad quadrant="q3" index={2} mounted={mounted} tasks={byQuadrant.q3} onToggle={toggleTask} onDelete={removeTask} onRename={renameTask} onSetStatus={setTaskStatus} onSetDueDate={setTaskDueDate} onSetPriority={setTaskPriority} onAdd={handleAdd} activeId={activeId} />
+            <Quad quadrant="q4" index={3} mounted={mounted} tasks={byQuadrant.q4} onToggle={toggleTask} onDelete={removeTask} onRename={renameTask} onSetStatus={setTaskStatus} onSetDueDate={setTaskDueDate} onSetPriority={setTaskPriority} onAdd={handleAdd} activeId={activeId} />
 
           </div>
 

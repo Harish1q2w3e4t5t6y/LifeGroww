@@ -107,12 +107,46 @@
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "cv11", "ss01", "ss03";
   }
+
+  /* The browser's own calendar/clock icon on date & time inputs renders as a
+     dark glyph by default — invisible against a dark input background. */
+  .dark input[type="date"]::-webkit-calendar-picker-indicator,
+  .dark input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+  .dark input[type="time"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    opacity: 0.8;
+  }
+  .dark input[type="date"]::-webkit-calendar-picker-indicator:hover,
+  .dark input[type="datetime-local"]::-webkit-calendar-picker-indicator:hover,
+  .dark input[type="time"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+  }
 }
 
 @layer utilities {
   .shadow-card { box-shadow: var(--shadow-card); }
   .shadow-float { box-shadow: var(--shadow-float); }
   .task-dragging { @apply opacity-50 rotate-2 scale-105; }
+}
+
+/* A task row (or the inline "add task" field) settling into place. */
+@keyframes task-row-in {
+  from { opacity: 0; transform: translateY(4px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Reserved for the one quadrant that's actually urgent — a slow breathing
+   glow on its icon badge, not a generic decorative pulse on everything. */
+@keyframes urgent-pulse {
+  0%, 100% { box-shadow: 0 0 10px -2px hsl(var(--q1) / 0.6); }
+  50% { box-shadow: 0 0 22px 2px hsl(var(--q1) / 0.9); }
+}
+
+/* Very slow ambient drift for the page-level background glow — alive, not distracting. */
+@keyframes ambient-drift {
+  0% { transform: translate(-50%, 0) scale(1); opacity: 0.4; }
+  50% { transform: translate(-52%, 2%) scale(1.06); opacity: 0.55; }
+  100% { transform: translate(-50%, 0) scale(1); opacity: 0.4; }
 }
 
 /* ============================================================

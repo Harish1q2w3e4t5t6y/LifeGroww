@@ -29,13 +29,13 @@ interface Props {
 // Each priority and status gets its own distinct color family.
 const PRIORITY_BG: Record<Priority, string> = {
   low: "bg-emerald-50 border-emerald-200 dark:bg-emerald-950/50 dark:border-emerald-900/60",
-  medium: "bg-[#F3E5D3] border-[#D9BE9C] dark:bg-[#3B2A1B]/60 dark:border-[#5C4429]",
+  medium: "bg-amber-50 border-amber-200 dark:bg-amber-500/15 dark:border-amber-500/30",
   high: "bg-rose-50 border-rose-200 dark:bg-rose-950/50 dark:border-rose-900/60",
 };
 
 const PRIORITY_ICON: Record<Priority, string> = {
   low: "text-emerald-600 dark:text-emerald-400",
-  medium: "text-[#8B5A2B] dark:text-[#D2A465]",
+  medium: "text-amber-600 dark:text-amber-400",
   high: "text-rose-600 dark:text-rose-400",
 };
 
@@ -109,6 +109,53 @@ export function TaskCard({
   const [dateOpen, setDateOpen] = useState(false);
   const [draftDate, setDraftDate] = useState<string>(isoToLocalInput(task.dueDate));
 
+  // Checking a task off (or deleting it) plays a shrink-and-fade exit before
+  // the underlying data actually changes, instead of the row just vanishing
+  // the instant the checkbox toggles. Re-opening a completed task (unchecking
+  // it) skips this — there's nothing leaving in that direction.
+  const [leaving, setLeaving] = useState(false);
+  const EXIT_MS = 260;
+
+  // Priority color change wipes in from the flag button's side (right) instead
+  // of the background snapping instantly. `baseColorPriority` is what the row's
+  // own background shows — it holds the *old* color while an overlay in the new
+  // color grows in from the right; once that finishes, the base catches up and
+  // the (now invisible, fully-grown) overlay is dropped.
+  const prevPriorityRef = useRef(task.priority);
+  const [baseColorPriority, setBaseColorPriority] = useState(task.priority);
+  const [priorityWiping, setPriorityWiping] = useState(false);
+  const WIPE_MS = 500;
+
+  useEffect(() => {
+    if (task.priority === prevPriorityRef.current) return;
+    prevPriorityRef.current = task.priority;
+    setPriorityWiping(false);
+    const raf = requestAnimationFrame(() => setPriorityWiping(true));
+    const done = window.setTimeout(() => {
+      setBaseColorPriority(task.priority);
+      setPriorityWiping(false);
+    }, WIPE_MS);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.clearTimeout(done);
+    };
+  }, [task.priority]);
+
+  const handleToggle = () => {
+    if (task.completed) {
+      onToggle(task.id);
+      return;
+    }
+    playCompleteSound();
+    setLeaving(true);
+    window.setTimeout(() => onToggle(task.id), EXIT_MS);
+  };
+
+  const handleDelete = () => {
+    setLeaving(true);
+    window.setTimeout(() => onDelete(task.id), EXIT_MS);
+  };
+
   useEffect(() => {
     if (!editing) setValue(task.title);
   }, [task.title, editing]);
@@ -138,28 +185,53 @@ export function TaskCard({
   return (
     <div
       ref={setNodeRef}
-      style={{ transform: CSS.Translate.toString(transform), transition }}
+      style={{
+        transform: CSS.Translate.toString(transform),
+        // Explicit property list (not a plain "all") so this doesn't silently
+        // swallow the hover/color transitions already declared via Tailwind's
+        // transition-all class below — inline `transition` always wins over a
+        // class for the same CSS property, so those need to be named here too.
+        transition: [
+          "background-color 200ms ease, border-color 200ms ease, box-shadow 200ms ease",
+          transition,
+          "max-height 260ms ease, margin-top 260ms ease, padding 260ms ease, opacity 260ms ease",
+        ]
+          .filter(Boolean)
+          .join(", "),
+        maxHeight: leaving ? "0px" : "80px",
+        overflow: "hidden",
+        ...(leaving ? { marginTop: 0, paddingTop: 0, paddingBottom: 0, opacity: 0 } : {}),
+      }}
       {...(editing ? {} : attributes)}
       {...(editing ? {} : listeners)}
       className={cn(
-        "group flex items-center gap-2 rounded-md px-2 py-1.5 shadow-sm border",
+        "group relative isolate rounded-md px-2 py-1.5 shadow-sm border",
         task.completed
           ? "bg-zinc-100 border-zinc-200 text-zinc-600 dark:bg-zinc-950/60 dark:border-zinc-900 dark:text-white"
           : isOverdue
           ? "bg-red-50 border-red-200 text-card-foreground dark:bg-red-950/40 dark:border-red-900/60"
-          : cn("text-card-foreground", PRIORITY_BG[task.priority]),
+          : cn("text-card-foreground", PRIORITY_BG[baseColorPriority]),
         !editing && "cursor-grab active:cursor-grabbing",
-        "touch-none transition-all hover:shadow-md",
+        "touch-none transition-all hover:shadow-md hover:-translate-y-px animate-[task-row-in_0.25s_ease-out]",
         (isDragging || dragging) && "opacity-50",
-        task.completed && "opacity-60"
+        task.completed && "opacity-60",
+        leaving && "scale-95"
       )}
     >
+      {!task.completed && !isOverdue && (
+        <div
+          aria-hidden="true"
+          className={cn(
+            "absolute inset-0 rounded-md z-0 origin-right transition-transform duration-500 ease-out",
+            PRIORITY_BG[task.priority]
+          )}
+          style={{ transform: priorityWiping ? "scaleX(1)" : "scaleX(0)" }}
+        />
+      )}
+      <div className="relative z-10 flex items-center gap-2 w-full">
       <Checkbox
         checked={task.completed}
-        onCheckedChange={() => {
-          if (!task.completed) playCompleteSound();
-          onToggle(task.id);
-        }}
+        onCheckedChange={handleToggle}
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
         className="h-3.5 w-3.5"
@@ -357,7 +429,7 @@ export function TaskCard({
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
-            onDelete(task.id);
+            handleDelete();
           }}
           className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity p-1 sm:p-0.5 shrink-0"
           aria-label="Delete"
@@ -366,6 +438,7 @@ export function TaskCard({
           <X className="h-3.5 w-3.5" />
         </button>
       )}
+      </div>
     </div>
   );
 }
