@@ -113,7 +113,7 @@ function Quad({
     <div
       ref={setNodeRef}
       className={cn(
-        "relative flex flex-col h-auto md:h-full min-h-[220px] md:min-h-0 overflow-hidden p-4",
+        "relative flex flex-col h-full min-h-0 overflow-hidden p-4",
         "rounded-xl border border-border/60 border-t-2 shadow-card",
         "transition-[opacity,transform,box-shadow] duration-500 ease-out hover:-translate-y-0.5 hover:shadow-lg",
         bgGradient[quadrant],
@@ -296,7 +296,7 @@ const Index = () => {
         style={{ background: "radial-gradient(circle, hsl(var(--primary) / 0.12) 0%, transparent 65%)" }}
         aria-hidden="true"
       />
-      <header className="relative z-10 flex items-center gap-2 px-3 sm:px-4 py-2 border-b border-border bg-card/60 backdrop-blur-sm shadow-card">
+      <header className="relative z-10 flex flex-wrap items-center justify-between gap-2 px-3 sm:px-4 py-2 border-b border-border bg-card/60 backdrop-blur-sm shadow-card">
         <button
           onClick={() => {
             const nextMap: Record<WorkspaceId, WorkspaceId> = {
@@ -316,7 +316,7 @@ const Index = () => {
             {workspace === "personal" ? "Personal" : workspace === "professional" ? "Professional" : "Both"}
           </span>
         </button>
-        <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-1.5 sm:gap-2">
           {/* Live status: what's happening right now */}
           <div className="flex items-center gap-1.5">
             <SyncStatusIndicator />
@@ -377,10 +377,12 @@ const Index = () => {
 
           <div className="hidden sm:block w-px h-5 bg-border/70 shrink-0" aria-hidden="true" />
 
-          {/* Utility actions */}
+          {/* Utility actions — desktop/tablet only; on mobile these move into
+              the "More options" menu below so the header stays to a
+              couple of rows instead of scattering one icon per group. */}
           <button
             onClick={toggleTheme}
-            className="h-7 w-7 grid place-items-center rounded-md border border-border/40 text-muted-foreground hover:text-foreground hover:bg-card/70 hover:border-border/60 transition-colors shrink-0"
+            className="hidden sm:grid h-7 w-7 place-items-center rounded-md border border-border/40 text-muted-foreground hover:text-foreground hover:bg-card/70 hover:border-border/60 transition-colors shrink-0"
             aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
             title={theme === "dark" ? "Light mode" : "Dark mode"}
           >
@@ -389,7 +391,7 @@ const Index = () => {
 
           <button
             onClick={() => setManagerOpen(true)}
-            className="h-7 w-7 grid place-items-center rounded-md border border-border/40 text-muted-foreground hover:text-foreground hover:bg-card/70 hover:border-border/60 transition-colors shrink-0"
+            className="hidden sm:grid h-7 w-7 place-items-center rounded-md border border-border/40 text-muted-foreground hover:text-foreground hover:bg-card/70 hover:border-border/60 transition-colors shrink-0"
             title="Recurring Tasks Manager"
           >
             <CalendarClock className="h-3.5 w-3.5" />
@@ -397,7 +399,7 @@ const Index = () => {
 
           <button
             onClick={handleExport}
-            className="h-7 w-7 grid place-items-center rounded-md border border-border/40 text-muted-foreground hover:text-foreground hover:bg-card/70 hover:border-border/60 transition-colors shrink-0"
+            className="hidden sm:grid h-7 w-7 place-items-center rounded-md border border-border/40 text-muted-foreground hover:text-foreground hover:bg-card/70 hover:border-border/60 transition-colors shrink-0"
             title="Export All Data"
           >
             <Download className="h-3.5 w-3.5" />
@@ -441,6 +443,27 @@ const Index = () => {
               <PopoverContent align="end" className="w-48 p-2 flex flex-col gap-1.5 bg-neutral-950 border border-white/10 text-white rounded-lg shadow-xl z-50">
                 <div className="text-[10px] font-semibold uppercase tracking-wider text-white/50 px-2 py-1">More Options</div>
                 <div className="flex flex-col gap-1">
+                  <button
+                    onClick={toggleTheme}
+                    className="flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-white/5 text-xs text-muted-foreground hover:text-white transition-colors w-full text-left"
+                  >
+                    <span>{theme === "dark" ? "Light Mode" : "Dark Mode"}</span>
+                    {theme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+                  </button>
+                  <button
+                    onClick={() => setManagerOpen(true)}
+                    className="flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-white/5 text-xs text-muted-foreground hover:text-white transition-colors w-full text-left"
+                  >
+                    <span>Recurring Tasks</span>
+                    <CalendarClock className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={handleExport}
+                    className="flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-white/5 text-xs text-muted-foreground hover:text-white transition-colors w-full text-left"
+                  >
+                    <span>Export Data</span>
+                    <Download className="h-3.5 w-3.5" />
+                  </button>
                   <div className="flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-white/5 text-xs text-muted-foreground hover:text-white transition-colors">
                     <span>Sound Alerts</span>
                     <SoundSettingsButton />
@@ -473,9 +496,9 @@ const Index = () => {
 
       </header>
 
-      <main className="flex-1 relative z-10 overflow-y-auto md:overflow-hidden">
+      <main className="flex-1 relative z-10 overflow-hidden">
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-          <div className="grid grid-cols-1 md:grid-cols-2 md:grid-rows-2 gap-3 p-3 h-auto md:h-full">
+          <div className="grid grid-cols-2 grid-rows-2 gap-1.5 sm:gap-3 p-1.5 sm:p-3 h-full">
             <Quad quadrant="q1" index={0} mounted={mounted} tasks={byQuadrant.q1} onToggle={toggleTask} onDelete={removeTask} onRename={renameTask} onSetStatus={setTaskStatus} onSetDueDate={setTaskDueDate} onSetPriority={setTaskPriority} onAdd={handleAdd} activeId={activeId} />
             <Quad quadrant="q2" index={1} mounted={mounted} tasks={byQuadrant.q2} onToggle={toggleTask} onDelete={removeTask} onRename={renameTask} onSetStatus={setTaskStatus} onSetDueDate={setTaskDueDate} onSetPriority={setTaskPriority} onAdd={handleAdd} activeId={activeId} />
             <Quad quadrant="q3" index={2} mounted={mounted} tasks={byQuadrant.q3} onToggle={toggleTask} onDelete={removeTask} onRename={renameTask} onSetStatus={setTaskStatus} onSetDueDate={setTaskDueDate} onSetPriority={setTaskPriority} onAdd={handleAdd} activeId={activeId} />

@@ -262,7 +262,11 @@ export function TaskCard({
         <div className="flex-1 flex items-center gap-1.5 min-w-[90px]">
           <p
             className={cn(
-              "text-[13px] leading-tight break-words min-w-0 flex-1 max-h-[2.4em] overflow-y-auto pr-0.5",
+              "text-[13px] leading-tight min-w-0 flex-1 pr-0.5",
+              // Mobile: single line, truncated with "..." — columns are half-width
+              // there now, so full wrapping just looks messy. Tablet/desktop keep
+              // the original multi-line (up to ~2 lines, scrollable) behavior.
+              "truncate sm:whitespace-normal sm:break-words sm:max-h-[2.4em] sm:overflow-y-auto",
               task.completed && "line-through"
             )}
             title={task.title}
@@ -270,13 +274,13 @@ export function TaskCard({
             {task.title}
           </p>
           {isOverdue && (
-            <span className="shrink-0 text-[9px] leading-none uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded border bg-red-100 text-red-700 border-red-200 dark:bg-red-500/20 dark:text-red-300 dark:border-red-500/30">
+            <span className="hidden sm:inline-flex shrink-0 text-[9px] leading-none uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded border bg-red-100 text-red-700 border-red-200 dark:bg-red-500/20 dark:text-red-300 dark:border-red-500/30">
               Overdue
             </span>
           )}
           <span
             className={cn(
-              "shrink-0 text-[9px] leading-none uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded border",
+              "hidden sm:inline-flex shrink-0 text-[9px] leading-none uppercase tracking-wide font-semibold px-1.5 py-0.5 rounded border",
               STATUS_BADGE[task.status].className
             )}
           >
@@ -287,8 +291,9 @@ export function TaskCard({
 
       {/* Action icons wrap onto their own row as a group on narrow screens
           instead of individually squeezing the title down to a few
-          characters per line. */}
-      <div className="flex items-center gap-0.5 ml-auto shrink-0">
+          characters per line. Hidden entirely on mobile — just the task
+          text + checkbox there, per request; still full on tablet/desktop. */}
+      <div className="hidden sm:flex items-center gap-0.5 ml-auto shrink-0">
       {!editing && (
         <button
           onPointerDown={(e) => e.stopPropagation()}
