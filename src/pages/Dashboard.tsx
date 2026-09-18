@@ -10,6 +10,7 @@ import {
   ChevronLeft, ChevronRight, RefreshCw,
 } from "lucide-react";
 import { useHabitStore, computeStats } from "@/lib/habit-store";
+import { useTheme } from "@/hooks/useTheme";
 import { useAppSettings, getReportLayoutRows } from "@/hooks/useAppSettings";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
@@ -58,10 +59,10 @@ const CARD_SIZE_CONFIGS = {
 
 function Panel({ children, className = "", title }: { children: React.ReactNode; className?: string; title?: string }) {
   return (
-    <div className={`rounded-lg border border-white/10 bg-[oklch(0.20_0.006_260)] dark:bg-[oklch(0.20_0.006_260)] flex flex-col min-h-0 overflow-hidden ${className}`}>
+    <div className={`rounded-xl border border-border bg-card shadow-card flex flex-col min-h-0 overflow-hidden ${className}`}>
       {title && (
-        <div 
-          className="text-[10px] uppercase tracking-widest text-white/50 shrink-0"
+        <div
+          className="text-[10px] uppercase tracking-widest text-muted-foreground shrink-0"
           style={{
             paddingLeft: "var(--card-padding)",
             paddingRight: "var(--card-padding)",
@@ -80,9 +81,9 @@ function Panel({ children, className = "", title }: { children: React.ReactNode;
 
 function Stat({ label, value, accent, style }: { label: string; value: string | number; accent?: string; style?: React.CSSProperties }) {
   return (
-    <div className="rounded-lg border border-white/10 bg-[oklch(0.20_0.006_260)] flex flex-col justify-center min-w-0" style={{ padding: "var(--card-padding)", ...style }}>
-      <div className="uppercase tracking-widest text-white/50 truncate" style={{ fontSize: "calc(var(--font-base) * 0.7)" }}>{label}</div>
-      <div className={`font-semibold tabular-nums ${accent ?? "text-white"}`} style={{ fontSize: "var(--stat-val-size)" }}>{value}</div>
+    <div className="rounded-xl border border-border bg-card shadow-card flex flex-col justify-center min-w-0" style={{ padding: "var(--card-padding)", ...style }}>
+      <div className="uppercase tracking-widest text-muted-foreground truncate" style={{ fontSize: "calc(var(--font-base) * 0.7)" }}>{label}</div>
+      <div className={`font-semibold tabular-nums ${accent ?? "text-foreground"}`} style={{ fontSize: "var(--stat-val-size)" }}>{value}</div>
     </div>
   );
 }
@@ -96,7 +97,7 @@ function Donut({ pct }: { pct: number }) {
         <defs>
           <filter id="glow"><feGaussianBlur stdDeviation="1.5" /></filter>
         </defs>
-        <circle cx="50" cy="50" r={r} stroke="oklch(1 0 0 / 8%)" strokeWidth="8" fill="none" />
+        <circle cx="50" cy="50" r={r} stroke="hsl(var(--border))" strokeWidth="8" fill="none" />
         <circle
           cx="50" cy="50" r={r}
           stroke="var(--dashboard-accent)" strokeWidth="8" fill="none"
@@ -106,8 +107,8 @@ function Donut({ pct }: { pct: number }) {
       </svg>
       <div className="absolute inset-0 grid place-items-center">
         <div className="text-center">
-          <div className="font-semibold tabular-nums text-white" style={{ fontSize: "calc(var(--font-base) * 1.5)" }}>{pct}%</div>
-          <div className="uppercase tracking-widest text-white/50" style={{ fontSize: "calc(var(--font-base) * 0.7)" }}>Overall</div>
+          <div className="font-semibold tabular-nums text-foreground" style={{ fontSize: "calc(var(--font-base) * 1.5)" }}>{pct}%</div>
+          <div className="uppercase tracking-widest text-muted-foreground" style={{ fontSize: "calc(var(--font-base) * 0.7)" }}>Overall</div>
         </div>
       </div>
     </div>
@@ -120,6 +121,13 @@ export default function Dashboard() {
   const [month, setMonth] = useState(today.getMonth());
   const isCurrentMonth = year === today.getFullYear() && month === today.getMonth();
   const todayDay = isCurrentMonth ? today.getDate() : undefined;
+
+  // Always includes the current `year` state so the dropdown never lands on a value
+  // outside its own option list after repeated prev/next-month navigation across a
+  // year boundary (previously hardcoded to today's year ± 1).
+  const yearOptions = Array.from(
+    new Set([today.getFullYear() - 1, today.getFullYear(), today.getFullYear() + 1, year])
+  ).sort((a, b) => a - b);
 
   const handlePrevMonth = () => {
     if (month === 0) {
@@ -140,9 +148,17 @@ export default function Dashboard() {
   };
 
   const {
-    store, monthData, daysCount, toggleCheck,
-    addHabit, updateHabit, deleteHabit, moveHabit, setDayMeta, toggleTheme,
+    monthData, daysCount, toggleCheck,
+    addHabit, updateHabit, deleteHabit, moveHabit, setDayMeta,
   } = useHabitStore(year, month);
+  // Same theme source as the Matrix page — the habit store used to keep its
+  // own separate theme flag that never touched the real `.dark` class the
+  // rest of the app (and Tailwind's `dark:` variants) actually respond to.
+  // That's why toggling theme here only ever changed this page's own
+  // background inline style and nothing else: everything downstream of the
+  // real `.dark` class — including every "dark-only" color below — never
+  // found out light mode had been selected.
+  const { theme, toggle: toggleTheme } = useTheme();
 
   const stats = useMemo(() => computeStats(monthData, daysCount, todayDay), [monthData, daysCount, todayDay]);
   const [newHabit, setNewHabit] = useState("");
@@ -162,7 +178,7 @@ export default function Dashboard() {
 
   const days = Array.from({ length: daysCount }, (_, i) => i + 1);
   const todayLog = todayDay ? monthData.days[todayDay] : undefined;
-  const isDark = store.theme === "dark";
+  const isDark = theme === "dark";
 
   // Habit Game Appearance settings from central SyncContext
   const { settings, updateSetting } = useSync();
@@ -171,36 +187,23 @@ export default function Dashboard() {
   const handleSaveSyncConfig = async (newConfig: Omit<RecurringConfig, "id">) => {
     let updatedConfigs: RecurringConfig[];
 
-    if (newConfig.habitId) {
+    // Editing an existing config (opened via a habit's sync icon or the manager dialog):
+    // always update that same entry in place, even if the user reassigned it to a
+    // different habit via the "Connected Habit" dropdown. Keying this lookup by
+    // newConfig.habitId instead (as before) would leave the original entry behind
+    // as an orphaned duplicate whenever the habit link changes.
+    if (syncInitialConfig?.id) {
+      const existingIdx = configs.findIndex((c) => c.id === syncInitialConfig.id);
+      updatedConfigs = existingIdx !== -1
+        ? configs.map((c, i) => (i === existingIdx ? { ...c, ...newConfig } : c))
+        : [...configs, { id: syncInitialConfig.id, ...newConfig }];
+    } else if (newConfig.habitId) {
       const existingIdx = configs.findIndex((c) => c.habitId === newConfig.habitId);
-      if (existingIdx !== -1) {
-        const updated = { ...configs[existingIdx], ...newConfig };
-        updatedConfigs = [...configs];
-        updatedConfigs[existingIdx] = updated;
-      } else {
-        const created: RecurringConfig = {
-          id: crypto.randomUUID(),
-          ...newConfig,
-        };
-        updatedConfigs = [...configs, created];
-      }
+      updatedConfigs = existingIdx !== -1
+        ? configs.map((c, i) => (i === existingIdx ? { ...c, ...newConfig } : c))
+        : [...configs, { id: crypto.randomUUID(), ...newConfig }];
     } else {
-      if (syncInitialConfig && syncInitialConfig.id) {
-        const existingIdx = configs.findIndex((c) => c.id === syncInitialConfig.id);
-        if (existingIdx !== -1) {
-          const updated = { ...configs[existingIdx], ...newConfig };
-          updatedConfigs = [...configs];
-          updatedConfigs[existingIdx] = updated;
-        } else {
-          updatedConfigs = [...configs];
-        }
-      } else {
-        const created: RecurringConfig = {
-          id: crypto.randomUUID(),
-          ...newConfig,
-        };
-        updatedConfigs = [...configs, created];
-      }
+      updatedConfigs = [...configs, { id: crypto.randomUUID(), ...newConfig }];
     }
 
     await updateSetting("recurringConfigs", updatedConfigs);
@@ -232,10 +235,8 @@ export default function Dashboard() {
   });
 
   return (
-    <div className={`h-screen w-screen overflow-y-auto lg:overflow-hidden flex flex-col ${isDark ? "" : "light"}`}
+    <div className="h-screen w-screen overflow-y-auto lg:overflow-hidden flex flex-col bg-background text-foreground"
       style={{
-        background: isDark ? "oklch(0.16 0.005 260)" : "oklch(0.99 0.003 260)",
-        color: isDark ? "oklch(0.94 0.005 260)" : "oklch(0.18 0.01 260)",
         fontFamily: "Geist, ui-sans-serif, system-ui, sans-serif",
         fontSize: "var(--font-base)",
         "--dashboard-accent": accentValue,
@@ -244,12 +245,12 @@ export default function Dashboard() {
       } as React.CSSProperties}
     >
       {/* Header */}
-      <header className="h-11 shrink-0 flex items-center gap-2 sm:gap-3 px-2 sm:px-3 border-b border-white/10 overflow-hidden">
-        <Link to="/" className="h-7 w-7 grid place-items-center rounded-md border border-white/10 hover:bg-white/5 shrink-0" title="Back to Matrix">
+      <header className="h-11 shrink-0 flex items-center gap-2 sm:gap-3 px-2 sm:px-3 border-b border-border bg-card/60 backdrop-blur-sm shadow-card overflow-hidden">
+        <Link to="/" className="h-7 w-7 grid place-items-center rounded-md border border-border/40 hover:bg-foreground/5 hover:border-border/60 transition-colors shrink-0" title="Back to Matrix">
           <ArrowLeft className="h-3.5 w-3.5" />
         </Link>
         <div className="flex items-center gap-1.5 shrink-0">
-          <div className="h-6 w-6 rounded-md grid place-items-center" style={{ background: "var(--dashboard-accent)", color: "var(--dashboard-accent-dark)" }}>
+          <div className="h-7 w-7 rounded-lg grid place-items-center shadow-[0_0_16px_-2px_var(--dashboard-accent)]" style={{ background: "var(--dashboard-accent)", color: "var(--dashboard-accent-dark)" }}>
             <Check className="h-3.5 w-3.5" strokeWidth={3} />
           </div>
           <span className="font-semibold tracking-tight hidden sm:inline">HabitGame</span>
@@ -257,24 +258,24 @@ export default function Dashboard() {
         <div className="flex items-center gap-1 shrink-0">
           <button
             onClick={handlePrevMonth}
-            className="h-7 w-7 grid place-items-center rounded-md border border-white/10 hover:bg-white/5 text-white/70 hover:text-white transition-colors"
+            className="h-7 w-7 grid place-items-center rounded-md border border-border/40 hover:bg-foreground/5 hover:border-border/60 text-muted-foreground hover:text-foreground transition-colors"
             title="Previous Month"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
           </button>
           <select value={year} onChange={(e) => setYear(+e.target.value)}
-            className="h-7 rounded-md bg-white/5 border border-white/10 px-1 sm:px-2 text-xs outline-none">
-            {[today.getFullYear() - 1, today.getFullYear(), today.getFullYear() + 1].map((y) => (
-              <option key={y} value={y} className="bg-neutral-900">{y}</option>
+            className="h-7 rounded-md bg-foreground/5 border border-border px-1 sm:px-2 text-xs outline-none">
+            {yearOptions.map((y) => (
+              <option key={y} value={y}>{y}</option>
             ))}
           </select>
           <select value={month} onChange={(e) => setMonth(+e.target.value)}
-            className="h-7 rounded-md bg-white/5 border border-white/10 px-1 sm:px-2 text-xs outline-none">
-            {MONTHS.map((m, i) => <option key={m} value={i} className="bg-neutral-900">{m}</option>)}
+            className="h-7 rounded-md bg-foreground/5 border border-border px-1 sm:px-2 text-xs outline-none">
+            {MONTHS.map((m, i) => <option key={m} value={i}>{m}</option>)}
           </select>
           <button
             onClick={handleNextMonth}
-            className="h-7 w-7 grid place-items-center rounded-md border border-white/10 hover:bg-white/5 text-white/70 hover:text-white transition-colors"
+            className="h-7 w-7 grid place-items-center rounded-md border border-border/40 hover:bg-foreground/5 hover:border-border/60 text-muted-foreground hover:text-foreground transition-colors"
             title="Next Month"
           >
             <ChevronRight className="h-3.5 w-3.5" />
@@ -282,28 +283,28 @@ export default function Dashboard() {
         </div>
         <div className="ml-auto flex items-center gap-1 sm:gap-1.5 shrink-0">
           <SyncStatusIndicator />
-          <span className="h-7 px-1.5 sm:px-2.5 rounded-full inline-flex items-center gap-1 text-[11px] sm:text-xs bg-white/5 border border-white/10" style={{ color: "oklch(0.78 0.16 70)" }}>
+          <span className="h-7 px-1.5 sm:px-2.5 rounded-full inline-flex items-center gap-1 text-[11px] sm:text-xs bg-foreground/5 border border-border text-amber-600 dark:text-amber-400">
             <Flame className="h-3.5 w-3.5" /> <span className="tabular-nums">{stats.currentStreak}</span>
           </span>
-          <span className="h-7 px-1.5 sm:px-2.5 rounded-full inline-flex items-center gap-1 text-[11px] sm:text-xs bg-white/5 border border-white/10" style={{ color: "oklch(0.78 0.16 70)" }}>
+          <span className="h-7 px-1.5 sm:px-2.5 rounded-full inline-flex items-center gap-1 text-[11px] sm:text-xs bg-foreground/5 border border-border text-amber-600 dark:text-amber-400">
             <Zap className="h-3.5 w-3.5" /> <span className="tabular-nums">{stats.completed * 10}</span>
           </span>
-          <button onClick={toggleTheme} className="h-7 w-7 grid place-items-center rounded-md border border-white/10 hover:bg-white/5 shrink-0">
+          <button onClick={toggleTheme} className="h-7 w-7 grid place-items-center rounded-md border border-border/40 hover:bg-foreground/5 hover:border-border/60 transition-colors shrink-0">
             {isDark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
           </button>
-          
+
           <Popover>
             <PopoverTrigger asChild>
-              <button className="h-7 w-7 grid place-items-center rounded-md border border-white/10 hover:bg-white/5 shrink-0" title="Dashboard Settings">
+              <button className="h-7 w-7 grid place-items-center rounded-md border border-border/40 hover:bg-foreground/5 hover:border-border/60 transition-colors shrink-0" title="Dashboard Settings">
                 <SettingsIcon className="h-3.5 w-3.5" />
               </button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-64 p-3 space-y-4 bg-neutral-950 border border-white/10 text-white rounded-lg shadow-xl z-50">
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-white/70">Habit Game Settings</div>
-              
+            <PopoverContent align="end" className="w-64 p-3 space-y-4 bg-popover border border-border text-popover-foreground rounded-xl shadow-xl z-50">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Habit Game Settings</div>
+
               {/* Accent Color */}
               <div className="space-y-1.5">
-                <div className="text-[9px] uppercase tracking-wide text-white/50">Dashboard Accent Color</div>
+                <div className="text-[9px] uppercase tracking-wide text-muted-foreground">Dashboard Accent Color</div>
                 <div className="flex items-center gap-1.5 flex-wrap">
                   {(Object.keys(ACCENT_COLORS) as Array<keyof typeof ACCENT_COLORS>).map((colorName) => (
                     <button
@@ -312,7 +313,7 @@ export default function Dashboard() {
                         updateSetting("habitgame", { ...habitgame, accentColor: colorName });
                       }}
                       className={`h-5 w-5 rounded-full border grid place-items-center transition-all ${
-                        accentColor === colorName ? "border-white scale-110" : "border-transparent hover:scale-105"
+                        accentColor === colorName ? "border-foreground scale-110" : "border-transparent hover:scale-105"
                       }`}
                       style={{ background: ACCENT_COLORS[colorName] }}
                       title={colorName.charAt(0).toUpperCase() + colorName.slice(1)}
@@ -325,7 +326,7 @@ export default function Dashboard() {
 
               {/* Card Size */}
               <div className="space-y-1.5">
-                <div className="text-[9px] uppercase tracking-wide text-white/50">Dashboard Card Size</div>
+                <div className="text-[9px] uppercase tracking-wide text-muted-foreground">Dashboard Card Size</div>
                 <div className="grid grid-cols-3 gap-1">
                   {(["small", "medium", "large"] as const).map((size) => (
                     <button
@@ -335,8 +336,8 @@ export default function Dashboard() {
                       }}
                       className={`h-6 rounded border text-[10px] font-medium transition-colors ${
                         cardSize === size
-                          ? "border-white bg-white/15 text-white"
-                          : "border-white/10 hover:bg-white/5 text-white/60"
+                          ? "border-foreground bg-foreground/15 text-foreground"
+                          : "border-border hover:bg-foreground/5 text-muted-foreground"
                       }`}
                     >
                       {size.charAt(0).toUpperCase() + size.slice(1)}
@@ -347,7 +348,7 @@ export default function Dashboard() {
 
               {/* Daily Progress Chart */}
               <div className="space-y-1.5">
-                <div className="text-[9px] uppercase tracking-wide text-white/50">Daily Progress Chart</div>
+                <div className="text-[9px] uppercase tracking-wide text-muted-foreground">Daily Progress Chart</div>
                 <div className="grid grid-cols-2 gap-1">
                   {(["bar", "line"] as const).map((type) => (
                     <button
@@ -357,8 +358,8 @@ export default function Dashboard() {
                       }}
                       className={`h-6 rounded border text-[10px] font-medium transition-colors ${
                         dailyChartType === type
-                          ? "border-white bg-white/15 text-white"
-                          : "border-white/10 hover:bg-white/5 text-white/60"
+                          ? "border-foreground bg-foreground/15 text-foreground"
+                          : "border-border hover:bg-foreground/5 text-muted-foreground"
                       }`}
                     >
                       {type === "bar" ? "Bar Chart" : "Line Chart"}
@@ -373,7 +374,7 @@ export default function Dashboard() {
                   updateSetting("habitgame", { accentColor: "green", cardSize: "medium", dailyChartType: "bar" });
                   toast.success("Appearance settings reset!");
                 }}
-                className="w-full h-7 flex items-center justify-center gap-1 text-[10px] font-medium text-red-400 hover:text-red-300 bg-red-950/20 hover:bg-red-950/40 border border-red-500/20 rounded transition-colors"
+                className="w-full h-7 flex items-center justify-center gap-1 text-[10px] font-medium text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 rounded transition-colors"
               >
                 Reset Appearance
               </button>
@@ -404,9 +405,9 @@ export default function Dashboard() {
         } as React.CSSProperties}
       >
         {/* Sidebar */}
-        <div className="col-span-12 lg:col-span-2 row-span-1 rounded-lg border border-white/10 bg-[oklch(0.20_0.006_260)] flex flex-col min-h-[240px] lg:min-h-0">
+        <div className="col-span-12 lg:col-span-2 row-span-1 rounded-xl border border-border bg-card shadow-card flex flex-col min-h-[240px] lg:min-h-0">
           <div
-            className="text-[10px] uppercase tracking-widest text-white/50 shrink-0"
+            className="text-[10px] uppercase tracking-widest text-muted-foreground shrink-0"
             style={{
               paddingLeft: "var(--card-padding)",
               paddingRight: "var(--card-padding)",
@@ -428,12 +429,12 @@ export default function Dashboard() {
                 setEditingId(null);
               };
               return (
-                <div key={h.id} className="group flex items-center gap-1.5 rounded-md px-1.5 py-1 hover:bg-white/5">
+                <div key={h.id} className="group flex items-center gap-1.5 rounded-md px-1.5 py-1 hover:bg-foreground/5">
                   {isEditing ? (
                     <input
                       value={editEmoji}
                       onChange={(e) => setEditEmoji(e.target.value)}
-                      className="w-7 text-center bg-white/5 border border-white/20 rounded text-sm outline-none"
+                      className="w-7 text-center bg-foreground/5 border border-border rounded text-sm outline-none"
                       maxLength={4}
                       aria-label="Emoji"
                     />
@@ -449,7 +450,7 @@ export default function Dashboard() {
                         if (e.key === "Enter") commitEdit();
                         if (e.key === "Escape") setEditingId(null);
                       }}
-                      className="flex-1 bg-transparent outline-none text-xs px-1 border-b border-white/20"
+                      className="flex-1 bg-transparent outline-none text-xs px-1 border-b border-border"
                     />
                   ) : (
                     <button
@@ -463,7 +464,7 @@ export default function Dashboard() {
                       <Check className="h-3.5 w-3.5" />
                     </button>
                   ) : (
-                    <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 text-white/50">
+                    <div className="opacity-0 group-hover:opacity-100 flex items-center gap-0.5 text-muted-foreground">
                       <button
                         onClick={() => {
                           setSyncHabitId(h.id);
@@ -476,33 +477,33 @@ export default function Dashboard() {
                           "p-0.5 transition-colors",
                           configs.find((c) => c.habitId === h.id && c.enabled)
                             ? "text-[var(--dashboard-accent)] hover:opacity-80"
-                            : "hover:text-white"
+                            : "hover:text-foreground"
                         )}
                         title="Sync with matrix"
                       >
                         <RefreshCw className="h-3 w-3" />
                       </button>
-                      <button onClick={() => moveHabit(h.id, -1)} className="hover:text-white p-0.5"><ArrowUp className="h-3 w-3" /></button>
-                      <button onClick={() => moveHabit(h.id, 1)} className="hover:text-white p-0.5"><ArrowDown className="h-3 w-3" /></button>
+                      <button onClick={() => moveHabit(h.id, -1)} className="hover:text-foreground p-0.5"><ArrowUp className="h-3 w-3" /></button>
+                      <button onClick={() => moveHabit(h.id, 1)} className="hover:text-foreground p-0.5"><ArrowDown className="h-3 w-3" /></button>
                       <button
                         onClick={() => { setEditingId(h.id); setEditValue(h.name); setEditEmoji(h.emoji); }}
-                        className="hover:text-white p-0.5"
+                        className="hover:text-foreground p-0.5"
                         title="Edit name & emoji"
                       ><Pencil className="h-3 w-3" /></button>
-                      <button onClick={() => deleteHabit(h.id)} className="hover:text-red-400 p-0.5"><Trash2 className="h-3 w-3" /></button>
+                      <button onClick={() => deleteHabit(h.id)} className="hover:text-destructive p-0.5"><Trash2 className="h-3 w-3" /></button>
                     </div>
                   )}
                 </div>
               );
             })}
           </div>
-          <div className="border-t border-white/10 space-y-1.5 shrink-0" style={{ padding: "var(--card-padding)" }}>
+          <div className="border-t border-border space-y-1.5 shrink-0" style={{ padding: "var(--card-padding)" }}>
             <div className="flex gap-1 items-center flex-wrap">
               {EMOJI_SUGGESTIONS.slice(0, 10).map((e) => (
                 <button
                   key={e}
                   onClick={() => setNewEmoji(e)}
-                  className={`text-sm leading-none h-5 w-5 grid place-items-center rounded transition-all ${newEmoji === e ? "bg-white/15 scale-110" : "hover:bg-white/10 opacity-70"}`}
+                  className={`text-sm leading-none h-5 w-5 grid place-items-center rounded transition-all ${newEmoji === e ? "bg-foreground/15 scale-110" : "hover:bg-foreground/10 opacity-70"}`}
                   title={e}
                 >{e}</button>
               ))}
@@ -512,7 +513,7 @@ export default function Dashboard() {
                 value={newEmoji}
                 onChange={(e) => setNewEmoji(e.target.value)}
                 maxLength={4}
-                className="w-8 text-center bg-white/5 border border-white/10 rounded-md h-7 text-sm outline-none focus:border-white/30"
+                className="w-8 text-center bg-foreground/5 border border-border rounded-md h-7 text-sm outline-none focus:border-foreground/30"
                 aria-label="Emoji"
                 title="Emoji"
               />
@@ -527,7 +528,7 @@ export default function Dashboard() {
                   }
                 }}
                 placeholder="New habit..."
-                className="flex-1 bg-white/5 border border-white/10 rounded-md px-2 h-7 text-xs outline-none focus:border-white/30"
+                className="flex-1 bg-foreground/5 border border-border rounded-md px-2 h-7 text-xs outline-none focus:border-foreground/30"
               />
               <button
                 onClick={() => {
@@ -546,12 +547,12 @@ export default function Dashboard() {
         <Panel className="col-span-12 lg:col-span-7 row-span-1 min-h-[300px] lg:min-h-0" title={`Tracker · ${MONTHS[month]} ${year}`}>
           <div className="h-full overflow-auto w-full max-w-full">
             <table className="text-xs border-separate border-spacing-0">
-              <thead className="sticky top-0 z-10" style={{ background: "oklch(0.20 0.006 260)" }}>
+              <thead className="sticky top-0 z-10" style={{ background: "hsl(var(--card))" }}>
                 <tr>
                   <th
-                    className="sticky left-0 z-20 text-left font-medium text-white/60 min-w-[140px]"
+                    className="sticky left-0 z-20 text-left font-medium text-muted-foreground min-w-[140px]"
                     style={{
-                      background: "oklch(0.20 0.006 260)",
+                      background: "hsl(var(--card))",
                       paddingLeft: "var(--card-padding)",
                       paddingRight: "var(--card-padding)",
                       paddingTop: "calc(var(--card-padding) * 0.5)",
@@ -567,7 +568,7 @@ export default function Dashboard() {
                       style={{
                         paddingTop: "calc(var(--card-padding) * 0.5)",
                         paddingBottom: "calc(var(--card-padding) * 0.5)",
-                        color: d === todayDay ? "var(--dashboard-accent)" : "rgba(255,255,255,0.4)"
+                        color: d === todayDay ? "var(--dashboard-accent)" : "hsl(var(--muted-foreground))"
                       }}
                     >
                       {d}
@@ -577,11 +578,11 @@ export default function Dashboard() {
               </thead>
               <tbody>
                 {monthData.habits.map((h) => (
-                  <tr key={h.id} className="hover:bg-white/[0.02]">
+                  <tr key={h.id} className="hover:bg-foreground/[0.02]">
                     <td
                       className="sticky left-0 z-10 whitespace-nowrap"
                       style={{
-                        background: "oklch(0.20 0.006 260)",
+                        background: "hsl(var(--card))",
                         paddingLeft: "var(--card-padding)",
                         paddingRight: "var(--card-padding)",
                         paddingTop: "calc(var(--card-padding) * 0.3)",
@@ -589,7 +590,7 @@ export default function Dashboard() {
                       }}
                     >
                       <span className="mr-1.5">{h.emoji}</span>
-                      <span className="text-white/80">{h.name}</span>
+                      <span className="text-foreground/80">{h.name}</span>
                     </td>
                     {days.map((d) => {
                       const checked = !!monthData.days[d]?.checks?.[h.id];
@@ -608,7 +609,7 @@ export default function Dashboard() {
                             className={`h-4 w-4 rounded transition-all active:scale-90 grid place-items-center border ${
                               checked
                                 ? "border-transparent"
-                                : "border-white/10 bg-white/[0.03] hover:border-[var(--dashboard-accent)]"
+                                : "border-border bg-foreground/[0.03] hover:border-[var(--dashboard-accent)]"
                             }`}
                             style={checked ? {
                               background: "var(--dashboard-accent)",
@@ -645,7 +646,7 @@ export default function Dashboard() {
             <div className="h-full flex items-end justify-around gap-2" style={{ paddingLeft: "calc(var(--card-padding) * 1.3)", paddingRight: "calc(var(--card-padding) * 1.3)", paddingBottom: "var(--card-padding)" }}>
               {stats.weeks.map((w, i) => (
                 <div key={i} className="flex-1 flex flex-col items-center gap-1 h-full justify-end">
-                  <div className="text-[9px] tabular-nums text-white/50">{w}%</div>
+                  <div className="text-[9px] tabular-nums text-muted-foreground">{w}%</div>
                   <div className="w-full rounded-t transition-all"
                     style={{
                       height: `${Math.max(4, w)}%`,
@@ -653,7 +654,7 @@ export default function Dashboard() {
                       boxShadow: "0 0 10px -3px var(--dashboard-accent)",
                     }}
                   />
-                  <div className="text-[9px] text-white/50">W{i + 1}</div>
+                  <div className="text-[9px] text-muted-foreground">W{i + 1}</div>
                 </div>
               ))}
             </div>
@@ -666,18 +667,18 @@ export default function Dashboard() {
             <ResponsiveContainer width="100%" height="100%">
               {dailyChartType === "bar" ? (
                 <BarChart data={chartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="2 2" stroke="oklch(1 0 0 / 6%)" />
-                  <XAxis dataKey="day" tick={{ fontSize: 9, fill: "oklch(0.62 0.01 260)" }} interval={2} />
-                  <YAxis tick={{ fontSize: 9, fill: "oklch(0.62 0.01 260)" }} domain={[0, 100]} />
-                  <Tooltip contentStyle={{ background: "oklch(0.20 0.006 260)", border: "1px solid oklch(1 0 0 / 10%)", fontSize: 11 }} />
+                  <CartesianGrid strokeDasharray="2 2" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="day" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} interval={2} />
+                  <YAxis tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} domain={[0, 100]} />
+                  <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", fontSize: 11 }} />
                   <Bar dataKey="pct" fill="var(--dashboard-accent)" radius={[2, 2, 0, 0]} />
                 </BarChart>
               ) : (
                 <LineChart data={chartData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="2 2" stroke="oklch(1 0 0 / 6%)" />
-                  <XAxis dataKey="day" tick={{ fontSize: 9, fill: "oklch(0.62 0.01 260)" }} interval={2} />
-                  <YAxis tick={{ fontSize: 9, fill: "oklch(0.62 0.01 260)" }} domain={[0, 100]} />
-                  <Tooltip contentStyle={{ background: "oklch(0.20 0.006 260)", border: "1px solid oklch(1 0 0 / 10%)", fontSize: 11 }} />
+                  <CartesianGrid strokeDasharray="2 2" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="day" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} interval={2} />
+                  <YAxis tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} domain={[0, 100]} />
+                  <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", fontSize: 11 }} />
                   <Line type="monotone" dataKey="pct" stroke="var(--dashboard-accent)" strokeWidth={2} dot={false} />
                 </LineChart>
               )}
@@ -689,8 +690,8 @@ export default function Dashboard() {
         <Panel className="col-span-12 md:col-span-6 lg:col-span-4 row-span-1" title="Analysis">
           <div className="h-full min-h-[180px] lg:min-h-0 overflow-auto">
             <table className="w-full text-xs">
-              <thead className="sticky top-0" style={{ background: "oklch(0.20 0.006 260)" }}>
-                <tr className="text-white/50 text-[10px] uppercase">
+              <thead className="sticky top-0" style={{ background: "hsl(var(--card))" }}>
+                <tr className="text-muted-foreground text-[10px] uppercase">
                   <th
                     className="text-left font-medium"
                     style={{
@@ -710,7 +711,7 @@ export default function Dashboard() {
               </thead>
               <tbody>
                 {stats.analysis.map((a) => (
-                  <tr key={a.id} className="hover:bg-white/[0.03]">
+                  <tr key={a.id} className="hover:bg-foreground/[0.03]">
                     <td
                       style={{
                         paddingLeft: "var(--card-padding)",
@@ -723,15 +724,15 @@ export default function Dashboard() {
                       <span className="mr-1.5">{a.emoji}</span>
                       {a.name}
                     </td>
-                    <td className="text-right tabular-nums px-2 text-white/70">{a.goal}</td>
-                    <td className="text-right tabular-nums px-2 text-white/70">{a.achieved}</td>
+                    <td className="text-right tabular-nums px-2 text-foreground/70">{a.goal}</td>
+                    <td className="text-right tabular-nums px-2 text-foreground/70">{a.achieved}</td>
                     <td className="px-2">
-                      <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
+                      <div className="h-1.5 w-full bg-foreground/10 rounded-full overflow-hidden">
                         <div className="h-full rounded-full transition-all"
                           style={{ width: `${a.pct}%`, background: "var(--dashboard-accent)" }} />
                       </div>
                     </td>
-                    <td className="text-right tabular-nums px-3 text-white/80">{a.pct}%</td>
+                    <td className="text-right tabular-nums px-3 text-foreground/80">{a.pct}%</td>
                   </tr>
                 ))}
               </tbody>
@@ -745,9 +746,9 @@ export default function Dashboard() {
             <div className="h-full min-h-[120px] sm:min-h-0" style={{ padding: "calc(var(--card-gap) * 0.5)" }}>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={wellnessData} margin={{ top: 4, right: 4, left: -30, bottom: 0 }}>
-                  <XAxis dataKey="day" tick={{ fontSize: 8, fill: "oklch(0.62 0.01 260)" }} interval={4} />
-                  <YAxis tick={{ fontSize: 8, fill: "oklch(0.62 0.01 260)" }} />
-                  <Tooltip contentStyle={{ background: "oklch(0.20 0.006 260)", border: "1px solid oklch(1 0 0 / 10%)", fontSize: 10 }} />
+                  <XAxis dataKey="day" tick={{ fontSize: 8, fill: "hsl(var(--muted-foreground))" }} interval={4} />
+                  <YAxis tick={{ fontSize: 8, fill: "hsl(var(--muted-foreground))" }} />
+                  <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", fontSize: 10 }} />
                   <Line type="monotone" dataKey="mood" stroke="var(--dashboard-accent)" strokeWidth={2} dot={false} connectNulls />
                   <Line type="monotone" dataKey="sleep" stroke="oklch(0.78 0.16 70)" strokeWidth={2} dot={false} connectNulls />
                 </LineChart>
@@ -757,7 +758,7 @@ export default function Dashboard() {
           <Panel className="flex-1 min-h-[140px] sm:min-h-0" title={`Today · Day ${todayDay ?? "-"}`}>
             <div className="space-y-2 text-xs h-full overflow-auto" style={{ padding: "var(--card-gap)" }}>
               <div>
-                <div className="text-[10px] text-white/50 mb-1">Mood</div>
+                <div className="text-[10px] text-muted-foreground mb-1">Mood</div>
                 <div className="flex justify-between">
                   {["😞","😕","😐","🙂","😄"].map((e, i) => (
                     <button
@@ -770,7 +771,7 @@ export default function Dashboard() {
                 </div>
               </div>
               <div>
-                <div className="text-[10px] text-white/50 mb-1 flex justify-between">
+                <div className="text-[10px] text-muted-foreground mb-1 flex justify-between">
                   <span>Sleep</span><span className="tabular-nums">{todayLog?.sleep ?? 0}h</span>
                 </div>
                 <input
@@ -783,13 +784,13 @@ export default function Dashboard() {
                 />
               </div>
               <div>
-                <div className="text-[10px] text-white/50 mb-1">Notes</div>
+                <div className="text-[10px] text-muted-foreground mb-1">Notes</div>
                 <textarea
                   value={todayLog?.notes ?? ""}
                   disabled={!todayDay}
                   onChange={(e) => todayDay && setDayMeta(todayDay, { notes: e.target.value })}
                   placeholder="Reflection..."
-                  className="w-full h-14 bg-white/5 border border-white/10 rounded-md p-1.5 text-xs outline-none resize-none focus:border-white/30"
+                  className="w-full h-14 bg-foreground/5 border border-border rounded-md p-1.5 text-xs outline-none resize-none focus:border-foreground/30"
                 />
               </div>
             </div>
@@ -813,9 +814,9 @@ export default function Dashboard() {
 
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md bg-white/5 border border-white/10 px-2 py-1">
-      <div className="uppercase tracking-widest text-white/50" style={{ fontSize: "calc(var(--font-base) * 0.7)" }}>{label}</div>
-      <div className="font-semibold tabular-nums" style={{ fontSize: "calc(var(--font-base) * 1.05)" }}>{value}</div>
+    <div className="rounded-md bg-foreground/5 border border-border px-2 py-1">
+      <div className="uppercase tracking-widest text-muted-foreground" style={{ fontSize: "calc(var(--font-base) * 0.7)" }}>{label}</div>
+      <div className="font-semibold tabular-nums text-foreground" style={{ fontSize: "calc(var(--font-base) * 1.05)" }}>{value}</div>
     </div>
   );
 }

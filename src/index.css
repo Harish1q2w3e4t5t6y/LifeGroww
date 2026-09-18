@@ -34,15 +34,17 @@
 
     --radius: 0.875rem;
 
-    /* Quadrant pastels - light */
-    --q1: 140 45% 86%;      /* sage - urgent important */
-    --q1-foreground: 140 40% 25%;
-    --q2: 200 70% 88%;      /* sky - important not urgent */
-    --q2-foreground: 200 60% 28%;
-    --q3: 45 85% 86%;       /* warm amber */
-    --q3-foreground: 35 65% 30%;
-    --q4: 8 80% 88%;        /* coral */
-    --q4-foreground: 8 60% 32%;
+    /* Quadrant colors - light. Each quadrant gets its own distinct, vivid
+       hue (not a shared accent) so Do / Schedule / Delegate / Delete stay
+       visually distinct at a glance. */
+    --q1: 145 55% 38%;      /* green - Do: important & urgent */
+    --q1-foreground: 145 55% 22%;
+    --q2: 212 80% 54%;      /* blue - Schedule: important, not urgent */
+    --q2-foreground: 212 70% 30%;
+    --q3: 36 92% 52%;       /* amber - Delegate: urgent, not important */
+    --q3-foreground: 32 75% 30%;
+    --q4: 4 82% 58%;        /* red - Delete: neither */
+    --q4-foreground: 4 75% 32%;
 
     --shadow-card: 0 1px 2px hsl(220 30% 18% / 0.04), 0 8px 24px -8px hsl(220 30% 18% / 0.08);
     --shadow-float: 0 10px 30px -10px hsl(220 60% 50% / 0.45);
@@ -77,14 +79,17 @@
     --input: 224 20% 20%;
     --ring: 220 80% 65%;
 
-    --q1: 140 30% 20%;
-    --q1-foreground: 140 50% 80%;
-    --q2: 200 45% 22%;
-    --q2-foreground: 200 75% 82%;
-    --q3: 38 45% 22%;
-    --q3-foreground: 45 85% 80%;
-    --q4: 8 45% 24%;
-    --q4-foreground: 8 80% 82%;
+    /* Quadrant colors - dark. Kept close in lightness to the light-mode
+       values above (not dimmed way down) so they still read as vivid color
+       against a near-black canvas instead of nearly disappearing. */
+    --q1: 145 55% 48%;
+    --q1-foreground: 145 55% 80%;
+    --q2: 212 85% 66%;
+    --q2-foreground: 212 90% 84%;
+    --q3: 36 90% 62%;
+    --q3-foreground: 36 90% 82%;
+    --q4: 4 85% 64%;
+    --q4-foreground: 4 90% 82%;
 
     --shadow-card: 0 1px 2px hsl(0 0% 0% / 0.4), 0 8px 24px -8px hsl(0 0% 0% / 0.5);
     --shadow-float: 0 10px 30px -10px hsl(220 80% 65% / 0.55);
@@ -129,24 +134,24 @@
    Professional keeps the base palette.
    ============================================================ */
 :root.workspace-personal {
-  --q1: 160 35% 90%;
-  --q1-foreground: 160 40% 28%;
-  --q2: 260 45% 92%;
-  --q2-foreground: 260 45% 35%;
-  --q3: 30 60% 92%;
-  --q3-foreground: 30 55% 32%;
-  --q4: 340 55% 92%;
-  --q4-foreground: 340 50% 35%;
+  --q1: 160 55% 40%;
+  --q1-foreground: 160 55% 22%;
+  --q2: 260 55% 58%;
+  --q2-foreground: 260 50% 32%;
+  --q3: 30 78% 50%;
+  --q3-foreground: 30 65% 30%;
+  --q4: 340 65% 54%;
+  --q4-foreground: 340 55% 32%;
 }
 .dark.workspace-personal {
-  --q1: 160 20% 18%;
-  --q1-foreground: 160 45% 80%;
-  --q2: 260 25% 22%;
-  --q2-foreground: 260 55% 82%;
-  --q3: 30 35% 20%;
-  --q3-foreground: 30 70% 80%;
-  --q4: 340 30% 22%;
-  --q4-foreground: 340 60% 82%;
+  --q1: 160 55% 48%;
+  --q1-foreground: 160 55% 80%;
+  --q2: 260 62% 68%;
+  --q2-foreground: 260 60% 84%;
+  --q3: 30 82% 60%;
+  --q3-foreground: 30 80% 80%;
+  --q4: 340 72% 66%;
+  --q4-foreground: 340 65% 84%;
 }
 
 /* ============================================================

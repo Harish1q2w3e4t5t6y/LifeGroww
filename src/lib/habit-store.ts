@@ -54,34 +54,64 @@ export function useHabitStore(year: number, month: number) {
     if (!isInitialized) return;
     if (syncStatus === "loading" || syncStatus === "saving" || syncStatus === "retry") return;
     if (!store.months[key]) {
-      const seed = findLatestMonthHabits(store.months) ?? DEFAULT_HABITS;
-      const updated: Store = {
-        ...store,
-        months: {
-          ...store.months,
-          [key]: { habits: seed.map((h) => ({ ...h })), days: {} }
-        }
-      };
-      updateHabits(updated);
+      updateHabits((prev) => {
+        if (prev.months[key]) return prev;
+        const seed = findLatestMonthHabits(prev.months) ?? DEFAULT_HABITS;
+        return {
+          ...prev,
+          months: {
+            ...prev.months,
+            [key]: { habits: seed.map((h) => ({ ...h })), days: {} }
+          }
+        };
+      });
     }
   }, [key, store, updateHabits, syncStatus, isInitialized]);
 
   const monthData: MonthData = store.months[key] ?? { habits: [], days: {} };
 
+  // Per-day data (checks, mood, sleep, notes) — scoped to just this month.
   const update = useCallback(
     async (fn: (m: MonthData) => MonthData) => {
-      const currentMonthData = store.months[key] ?? { habits: [], days: {} };
-      const nextMonthData = fn(currentMonthData);
-      const updated: Store = {
-        ...store,
-        months: {
-          ...store.months,
-          [key]: nextMonthData
-        }
-      };
-      await updateHabits(updated);
+      await updateHabits((prev) => {
+        const currentMonthData = prev.months[key] ?? { habits: [], days: {} };
+        const nextMonthData = fn(currentMonthData);
+        return {
+          ...prev,
+          months: {
+            ...prev.months,
+            [key]: nextMonthData
+          }
+        };
+      });
     },
-    [key, store, updateHabits]
+    [key, updateHabits]
+  );
+
+  // The habit *list itself* (add/rename/delete/reorder) — applied across
+  // months, not just the one currently on screen. Each month used to keep
+  // its own independent copy, snapshotted only once when that month was
+  // first created, so editing a habit later never reached any other month —
+  // "add a habit today" wouldn't show up next month, a rename wouldn't
+  // apply to months you'd already visited, etc. `scope` controls how far a
+  // change reaches: renames/reorders apply everywhere (it's still the same
+  // habit), while adding or deleting only affects the current month onward
+  // so past history isn't rewritten.
+  const updateHabitsAcrossMonths = useCallback(
+    (transform: (habits: Habit[], monthKey: string) => Habit[], scope: "all" | "current-and-future") => {
+      return updateHabits((prev) => {
+        const nextMonths: Record<string, MonthData> = {};
+        for (const [monthKeyIter, monthData] of Object.entries(prev.months)) {
+          if (scope === "current-and-future" && monthKeyIter < key) {
+            nextMonths[monthKeyIter] = monthData;
+          } else {
+            nextMonths[monthKeyIter] = { ...monthData, habits: transform(monthData.habits, monthKeyIter) };
+          }
+        }
+        return { ...prev, months: nextMonths };
+      });
+    },
+    [key, updateHabits]
   );
 
   const toggleCheck = useCallback(
@@ -98,46 +128,49 @@ export function useHabitStore(year: number, month: number) {
   const addHabit = useCallback(
     async (name: string, emoji = "✨") => {
       if (!name.trim()) return;
-      await update((m) => ({
-        ...m,
-        habits: [...m.habits, { id: crypto.randomUUID(), name: name.trim(), emoji }],
-      }));
+      const newHabit: Habit = { id: crypto.randomUUID(), name: name.trim(), emoji };
+      // Only this month onward — a habit you add today wasn't being tracked
+      // in past months, so it shouldn't retroactively appear (and lower)
+      // their completion stats.
+      await updateHabitsAcrossMonths((habits) => [...habits, newHabit], "current-and-future");
     },
-    [update]
+    [updateHabitsAcrossMonths]
   );
 
   const updateHabit = useCallback(
     async (id: string, patch: Partial<Habit>) => {
-      await update((m) => ({
-        ...m,
-        habits: m.habits.map((h) => (h.id === id ? { ...h, ...patch } : h)),
-      }));
+      // Every month — it's a rename/emoji change to the same habit, not a
+      // new one, so history should read consistently everywhere.
+      await updateHabitsAcrossMonths(
+        (habits) => habits.map((h) => (h.id === id ? { ...h, ...patch } : h)),
+        "all"
+      );
     },
-    [update]
+    [updateHabitsAcrossMonths]
   );
 
   const deleteHabit = useCallback(
     async (id: string) => {
-      await update((m) => ({
-        ...m,
-        habits: m.habits.filter((h) => h.id !== id),
-      }));
+      // Only this month onward — deleting a habit stops tracking it going
+      // forward without erasing the history you already built up for it.
+      await updateHabitsAcrossMonths((habits) => habits.filter((h) => h.id !== id), "current-and-future");
     },
-    [update]
+    [updateHabitsAcrossMonths]
   );
 
   const moveHabit = useCallback(
     async (id: string, dir: -1 | 1) => {
-      await update((m) => {
-        const idx = m.habits.findIndex((h) => h.id === id);
+      // Every month — keep display order consistent wherever the habit appears.
+      await updateHabitsAcrossMonths((habits) => {
+        const idx = habits.findIndex((h) => h.id === id);
         const j = idx + dir;
-        if (idx < 0 || j < 0 || j >= m.habits.length) return m;
-        const arr = [...m.habits];
+        if (idx < 0 || j < 0 || j >= habits.length) return habits;
+        const arr = [...habits];
         [arr[idx], arr[j]] = [arr[j], arr[idx]];
-        return { ...m, habits: arr };
-      });
+        return arr;
+      }, "all");
     },
-    [update]
+    [updateHabitsAcrossMonths]
   );
 
   const setDayMeta = useCallback(
@@ -151,12 +184,11 @@ export function useHabitStore(year: number, month: number) {
   );
 
   const toggleTheme = useCallback(async () => {
-    const updated: Store = {
-      ...store,
-      theme: store.theme === "dark" ? "light" : "dark"
-    };
-    await updateHabits(updated);
-  }, [store, updateHabits]);
+    await updateHabits((prev) => ({
+      ...prev,
+      theme: prev.theme === "dark" ? "light" : "dark"
+    }));
+  }, [updateHabits]);
 
   return { store, monthData, daysCount, toggleCheck, addHabit, updateHabit, deleteHabit, moveHabit, setDayMeta, toggleTheme };
 }

@@ -7,11 +7,12 @@ import {
   useSensor,
   useSensors,
   useDroppable,
+  closestCenter,
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { Plus, Check, Moon, Sun, LayoutDashboard, LogOut, MoreHorizontal, Briefcase, Home, Layers, CalendarClock, Download } from "lucide-react";
+import { Plus, Check, Moon, Sun, LayoutDashboard, LogOut, MoreHorizontal, Briefcase, Home, Layers, CalendarClock, Download, Flame, Users, Trash2, type LucideIcon } from "lucide-react";
 import { Link } from "react-router-dom";
 import { RecurringTasksManagerDialog } from "@/components/RecurringTasksManagerDialog";
 import type { Habit } from "@/lib/types";
@@ -34,11 +35,33 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useSync } from "@/context/SyncContext";
 
 
-const bgColor: Record<Quadrant, string> = {
-  q1: "bg-q1/40",
-  q2: "bg-q2/40",
-  q3: "bg-q3/40",
-  q4: "bg-q4/40",
+// Each quadrant gets its own distinct color (see the q1-q4 tokens in
+// index.css) — Do=green, Schedule=blue, Delegate=amber, Delete=red — plus an
+// icon that carries the same meaning (urgency, time, hand-off, discard) so
+// the identity reads even before you register the color.
+const bgGradient: Record<Quadrant, string> = {
+  q1: "bg-gradient-to-br from-q1/25 via-q1/8 to-transparent",
+  q2: "bg-gradient-to-br from-q2/25 via-q2/8 to-transparent",
+  q3: "bg-gradient-to-br from-q3/25 via-q3/8 to-transparent",
+  q4: "bg-gradient-to-br from-q4/25 via-q4/8 to-transparent",
+};
+const borderTopColor: Record<Quadrant, string> = {
+  q1: "border-t-q1",
+  q2: "border-t-q2",
+  q3: "border-t-q3",
+  q4: "border-t-q4",
+};
+const badgeColor: Record<Quadrant, string> = {
+  q1: "bg-q1 shadow-[0_0_18px_-3px_hsl(var(--q1)/0.75)]",
+  q2: "bg-q2 shadow-[0_0_18px_-3px_hsl(var(--q2)/0.75)]",
+  q3: "bg-q3 shadow-[0_0_18px_-3px_hsl(var(--q3)/0.75)]",
+  q4: "bg-q4 shadow-[0_0_18px_-3px_hsl(var(--q4)/0.75)]",
+};
+const quadrantIcon: Record<Quadrant, LucideIcon> = {
+  q1: Flame,
+  q2: CalendarClock,
+  q3: Users,
+  q4: Trash2,
 };
 const ringColor: Record<Quadrant, string> = {
   q1: "ring-q1",
@@ -87,14 +110,24 @@ function Quad({
       ref={setNodeRef}
       className={cn(
         "relative flex flex-col h-auto md:h-full min-h-[220px] md:min-h-0 overflow-hidden transition-all p-4",
-        bgColor[quadrant],
+        "rounded-xl border border-border/60 border-t-2 shadow-card",
+        bgGradient[quadrant],
+        borderTopColor[quadrant],
         isOver && cn("ring-2 ring-inset", ringColor[quadrant])
       )}
     >
       <div className="flex items-start justify-between mb-3">
-        <div>
-          <h2 className="text-lg md:text-xl font-bold tracking-tight text-foreground/80">{meta.title}</h2>
-          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{meta.subtitle}</p>
+        <div className="flex items-center gap-2.5">
+          <div className={cn("h-8 w-8 rounded-lg grid place-items-center shrink-0 text-white", badgeColor[quadrant])}>
+            {(() => {
+              const Icon = quadrantIcon[quadrant];
+              return <Icon className="h-4 w-4" strokeWidth={2.25} />;
+            })()}
+          </div>
+          <div>
+            <h2 className="text-lg md:text-xl font-bold tracking-tight text-foreground/85">{meta.title}</h2>
+            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{meta.subtitle}</p>
+          </div>
         </div>
         <button
           onClick={() => setAdding(true)}
@@ -233,8 +266,14 @@ const Index = () => {
   const activeTask = tasks.find((t) => t.id === activeId) ?? null;
 
   return (
-    <div className="h-screen flex flex-col bg-background">
-      <header className="flex items-center gap-2 px-3 sm:px-4 py-2 border-b border-border bg-card/60 backdrop-blur-sm">
+    <div className="relative h-screen flex flex-col bg-background overflow-hidden">
+      {/* Ambient glow — one quiet accent behind the whole page, not per-section decoration */}
+      <div
+        className="pointer-events-none absolute -top-1/4 left-1/2 -translate-x-1/2 w-[140vw] h-[70vh] rounded-full opacity-40 blur-3xl"
+        style={{ background: "radial-gradient(circle, hsl(var(--primary) / 0.12) 0%, transparent 65%)" }}
+        aria-hidden="true"
+      />
+      <header className="relative z-10 flex items-center gap-2 px-3 sm:px-4 py-2 border-b border-border bg-card/60 backdrop-blur-sm shadow-card">
         <button
           onClick={() => {
             const nextMap: Record<WorkspaceId, WorkspaceId> = {
@@ -247,15 +286,22 @@ const Index = () => {
           className="flex items-center gap-2 text-foreground hover:text-primary transition-colors cursor-pointer select-none text-left"
           title="Cycle through workspaces"
         >
-          <div className="h-7 w-7 rounded-md bg-gradient-to-br from-primary to-primary/60 grid place-items-center text-primary-foreground font-bold text-sm shrink-0">E</div>
+          <div className="relative h-7 w-7 shrink-0">
+            <div className="h-7 w-7 rounded-md bg-gradient-to-br from-primary to-primary/60 grid place-items-center text-primary-foreground font-bold text-sm shadow-[0_0_16px_-2px_hsl(var(--primary)/0.6)]">E</div>
+          </div>
           <span className="text-xs sm:text-sm font-bold truncate max-w-[120px] sm:max-w-none">
             {workspace === "personal" ? "Personal" : workspace === "professional" ? "Professional" : "Both"}
           </span>
         </button>
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
-          <SyncStatusIndicator />
-          <PomodoroTimer />
-          
+          {/* Live status: what's happening right now */}
+          <div className="flex items-center gap-1.5">
+            <SyncStatusIndicator />
+            <PomodoroTimer />
+          </div>
+
+          <div className="hidden sm:block w-px h-5 bg-border/70 shrink-0" aria-hidden="true" />
+
           {/* Workspace Segmented Button Group */}
           <div className="flex items-center rounded-md border border-border bg-card/70 p-0.5 shrink-0">
             <button
@@ -295,10 +341,13 @@ const Index = () => {
               <Layers className="h-3.5 w-3.5" />
             </button>
           </div>
-          
+
+          <div className="hidden sm:block w-px h-5 bg-border/70 shrink-0" aria-hidden="true" />
+
+          {/* Utility actions */}
           <button
             onClick={toggleTheme}
-            className="h-7 w-7 grid place-items-center rounded-md border border-border/60 bg-card/70 text-muted-foreground hover:text-foreground hover:bg-card transition-colors shrink-0"
+            className="h-7 w-7 grid place-items-center rounded-md border border-border/40 text-muted-foreground hover:text-foreground hover:bg-card/70 hover:border-border/60 transition-colors shrink-0"
             aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
             title={theme === "dark" ? "Light mode" : "Dark mode"}
           >
@@ -307,7 +356,7 @@ const Index = () => {
 
           <button
             onClick={() => setManagerOpen(true)}
-            className="h-7 w-7 grid place-items-center rounded-md border border-border/60 bg-card/70 text-muted-foreground hover:text-foreground hover:bg-card transition-colors shrink-0"
+            className="h-7 w-7 grid place-items-center rounded-md border border-border/40 text-muted-foreground hover:text-foreground hover:bg-card/70 hover:border-border/60 transition-colors shrink-0"
             title="Recurring Tasks Manager"
           >
             <CalendarClock className="h-3.5 w-3.5" />
@@ -315,7 +364,7 @@ const Index = () => {
 
           <button
             onClick={handleExport}
-            className="h-7 w-7 grid place-items-center rounded-md border border-border/60 bg-card/70 text-muted-foreground hover:text-foreground hover:bg-card transition-colors shrink-0"
+            className="h-7 w-7 grid place-items-center rounded-md border border-border/40 text-muted-foreground hover:text-foreground hover:bg-card/70 hover:border-border/60 transition-colors shrink-0"
             title="Export All Data"
           >
             <Download className="h-3.5 w-3.5" />
@@ -326,7 +375,7 @@ const Index = () => {
             <SoundSettingsButton />
             <Link
               to="/dashboard"
-              className="h-7 w-7 grid place-items-center rounded-md border border-border/60 bg-card/70 text-muted-foreground hover:text-foreground hover:bg-card transition-colors"
+              className="h-7 w-7 grid place-items-center rounded-md border border-border/40 text-muted-foreground hover:text-foreground hover:bg-card/70 hover:border-border/60 transition-colors"
               aria-label="Open habit dashboard"
               title="Habit Dashboard"
             >
@@ -336,7 +385,7 @@ const Index = () => {
             {user && (
               <button
                 onClick={logout}
-                className="h-7 w-7 grid place-items-center rounded-md border border-border/60 bg-card/70 text-muted-foreground hover:text-destructive hover:bg-card transition-colors"
+                className="h-7 w-7 grid place-items-center rounded-md border border-border/40 text-muted-foreground hover:text-destructive hover:bg-card/70 hover:border-destructive/40 transition-colors"
                 aria-label="Sign Out"
                 title="Sign Out"
               >
@@ -391,19 +440,14 @@ const Index = () => {
 
       </header>
 
-      <main className="flex-1 relative overflow-y-auto md:overflow-hidden">
-        <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-          <div className="grid grid-cols-1 md:grid-cols-2 md:grid-rows-2 h-auto md:h-full">
+      <main className="flex-1 relative z-10 overflow-y-auto md:overflow-hidden">
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+          <div className="grid grid-cols-1 md:grid-cols-2 md:grid-rows-2 gap-3 p-3 h-auto md:h-full">
             <Quad quadrant="q1" tasks={byQuadrant.q1} onToggle={toggleTask} onDelete={removeTask} onRename={renameTask} onSetStatus={setTaskStatus} onSetDueDate={setTaskDueDate} onSetPriority={setTaskPriority} onAdd={handleAdd} activeId={activeId} />
             <Quad quadrant="q2" tasks={byQuadrant.q2} onToggle={toggleTask} onDelete={removeTask} onRename={renameTask} onSetStatus={setTaskStatus} onSetDueDate={setTaskDueDate} onSetPriority={setTaskPriority} onAdd={handleAdd} activeId={activeId} />
             <Quad quadrant="q3" tasks={byQuadrant.q3} onToggle={toggleTask} onDelete={removeTask} onRename={renameTask} onSetStatus={setTaskStatus} onSetDueDate={setTaskDueDate} onSetPriority={setTaskPriority} onAdd={handleAdd} activeId={activeId} />
             <Quad quadrant="q4" tasks={byQuadrant.q4} onToggle={toggleTask} onDelete={removeTask} onRename={renameTask} onSetStatus={setTaskStatus} onSetDueDate={setTaskDueDate} onSetPriority={setTaskPriority} onAdd={handleAdd} activeId={activeId} />
 
-          </div>
-
-          <div className="pointer-events-none absolute inset-0 hidden md:block">
-            <div className="absolute left-0 right-0 top-1/2 h-px bg-border" />
-            <div className="absolute top-0 bottom-0 left-1/2 w-px bg-border" />
           </div>
 
           <DragOverlay dropAnimation={null}>

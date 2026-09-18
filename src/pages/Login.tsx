@@ -85,6 +85,14 @@ export default function Login() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
 
+  const [mode, setMode] = useState<"auth" | "forgot" | "reset">("auth");
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetEmailLoading, setResetEmailLoading] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [newPasswordLoading, setNewPasswordLoading] = useState(false);
+
   useEffect(() => {
     // Slight delay so the fade-in animation feels intentional
     const t = setTimeout(() => setMounted(true), 50);
@@ -92,8 +100,22 @@ export default function Login() {
   }, []);
 
   useEffect(() => {
-    if (user) navigate("/");
-  }, [user, navigate]);
+    // A password-recovery link establishes a real Supabase session too, so `user`
+    // becomes truthy while the "set new password" screen is showing — don't let
+    // that redirect the user away before they've actually changed their password.
+    if (user && mode !== "reset") navigate("/");
+  }, [user, navigate, mode]);
+
+  // Clicking a Supabase password-reset email link lands back here carrying a
+  // recovery session; Supabase's client detects it from the URL and fires this
+  // event, which is our cue to switch the card into "set new password" mode.
+  useEffect(() => {
+    if (!isConfigured) return;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") setMode("reset");
+    });
+    return () => subscription.unsubscribe();
+  }, [isConfigured]);
 
   /* ── handlers ── */
   const handleGoogleLogin = async () => {
@@ -140,6 +162,52 @@ export default function Login() {
       toast.error((err as Error).message || "Authentication failed");
     } finally {
       setAuthLoading(false);
+    }
+  };
+
+  const handleSendResetLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetEmail) {
+      toast.error("Please enter your email address");
+      return;
+    }
+    setResetEmailLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+        redirectTo: `${window.location.origin}/login`,
+      });
+      if (error) throw error;
+      toast.success("Check your email for a password reset link");
+      setResetEmail("");
+      setMode("auth");
+      setTab("signin");
+    } catch (err: unknown) {
+      toast.error((err as Error).message || "Could not send reset link");
+    } finally {
+      setResetEmailLoading(false);
+    }
+  };
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+    setNewPasswordLoading(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      toast.success("Password updated! You're signed in.");
+      navigate("/");
+    } catch (err: unknown) {
+      toast.error((err as Error).message || "Could not update password");
+    } finally {
+      setNewPasswordLoading(false);
     }
   };
 
@@ -192,132 +260,256 @@ export default function Login() {
             </div>
           </div>
 
-          {/* ── Google (primary CTA) ── */}
-          <button
-            id="google-signin-btn"
-            onClick={handleGoogleLogin}
-            disabled={googleLoading || authLoading}
-            className="login-btn-google group relative flex items-center justify-center gap-3 w-full py-3 px-5 rounded-xl text-sm font-semibold transition-all disabled:opacity-60 disabled:pointer-events-none"
-          >
-            {googleLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin text-white/70" />
-            ) : (
-              <GoogleIcon className="h-5 w-5 shrink-0" />
-            )}
-            {googleLoading ? "Redirecting…" : "Continue with Google"}
-          </button>
-
-          {/* ── Divider ── */}
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-px bg-white/10" />
-            <span className="text-[11px] uppercase tracking-widest text-white/30">
-              or use email
-            </span>
-            <div className="flex-1 h-px bg-white/10" />
-          </div>
-
-          {/* ── Tab switcher ── */}
-          <div className="login-tabs grid grid-cols-2 gap-1 p-1 rounded-xl bg-white/[0.05]">
-            {(["signin", "signup"] as const).map((t) => (
+          {mode === "auth" && (
+            <>
+              {/* ── Google (primary CTA) ── */}
               <button
-                key={t}
-                id={`tab-${t}`}
-                onClick={() => setTab(t)}
-                className={`py-2 rounded-lg text-xs font-semibold transition-all ${
-                  tab === t
-                    ? "bg-white/10 text-white shadow-sm"
-                    : "text-white/40 hover:text-white/60"
-                }`}
+                id="google-signin-btn"
+                onClick={handleGoogleLogin}
+                disabled={googleLoading || authLoading}
+                className="login-btn-google group relative flex items-center justify-center gap-3 w-full py-3 px-5 rounded-xl text-sm font-semibold transition-all disabled:opacity-60 disabled:pointer-events-none"
               >
-                {t === "signin" ? "Sign In" : "Sign Up"}
+                {googleLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-white/70" />
+                ) : (
+                  <GoogleIcon className="h-5 w-5 shrink-0" />
+                )}
+                {googleLoading ? "Redirecting…" : "Continue with Google"}
               </button>
-            ))}
-          </div>
 
-          {/* ── Email form ── */}
-          <form onSubmit={handleEmailAuth} className="flex flex-col gap-4">
-            {/* Email */}
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="login-email" className="text-xs font-medium text-white/50 uppercase tracking-widest">
-                Email
-              </label>
-              <div className="login-input-wrap relative">
-                <Mail className="login-input-icon absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30 pointer-events-none" />
-                <input
-                  id="login-email"
-                  type="email"
-                  autoComplete="email"
-                  placeholder="name@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="login-input w-full pl-10 pr-4 py-3 rounded-xl text-sm text-white placeholder:text-white/20 bg-transparent outline-none"
-                />
+              {/* ── Divider ── */}
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-white/10" />
+                <span className="text-[11px] uppercase tracking-widest text-white/30">
+                  or use email
+                </span>
+                <div className="flex-1 h-px bg-white/10" />
               </div>
-            </div>
 
-            {/* Password */}
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="login-password" className="text-xs font-medium text-white/50 uppercase tracking-widest">
-                Password
-              </label>
-              <div className="login-input-wrap relative">
-                <Lock className="login-input-icon absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30 pointer-events-none" />
-                <input
-                  id="login-password"
-                  type={showPassword ? "text" : "password"}
-                  autoComplete={tab === "signin" ? "current-password" : "new-password"}
-                  placeholder={tab === "signup" ? "Min. 6 characters" : "••••••••"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="login-input w-full pl-10 pr-12 py-3 rounded-xl text-sm text-white placeholder:text-white/20 bg-transparent outline-none"
-                />
+              {/* ── Tab switcher ── */}
+              <div className="login-tabs grid grid-cols-2 gap-1 p-1 rounded-xl bg-white/[0.05]">
+                {(["signin", "signup"] as const).map((t) => (
+                  <button
+                    key={t}
+                    id={`tab-${t}`}
+                    onClick={() => setTab(t)}
+                    className={`py-2 rounded-lg text-xs font-semibold transition-all ${
+                      tab === t
+                        ? "bg-white/10 text-white shadow-sm"
+                        : "text-white/40 hover:text-white/60"
+                    }`}
+                  >
+                    {t === "signin" ? "Sign In" : "Sign Up"}
+                  </button>
+                ))}
+              </div>
+
+              {/* ── Email form ── */}
+              <form onSubmit={handleEmailAuth} className="flex flex-col gap-4">
+                {/* Email */}
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="login-email" className="text-xs font-medium text-white/50 uppercase tracking-widest">
+                    Email
+                  </label>
+                  <div className="login-input-wrap relative">
+                    <Mail className="login-input-icon absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30 pointer-events-none" />
+                    <input
+                      id="login-email"
+                      type="email"
+                      autoComplete="email"
+                      placeholder="name@example.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      className="login-input w-full pl-10 pr-4 py-3 rounded-xl text-sm text-white placeholder:text-white/20 bg-transparent outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Password */}
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="login-password" className="text-xs font-medium text-white/50 uppercase tracking-widest">
+                      Password
+                    </label>
+                    {tab === "signin" && (
+                      <button
+                        type="button"
+                        onClick={() => setMode("forgot")}
+                        className="text-[11px] font-medium text-blue-400 hover:text-blue-300 transition-colors"
+                      >
+                        Forgot password?
+                      </button>
+                    )}
+                  </div>
+                  <div className="login-input-wrap relative">
+                    <Lock className="login-input-icon absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30 pointer-events-none" />
+                    <input
+                      id="login-password"
+                      type={showPassword ? "text" : "password"}
+                      autoComplete={tab === "signin" ? "current-password" : "new-password"}
+                      placeholder={tab === "signup" ? "Min. 6 characters" : "••••••••"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      className="login-input w-full pl-10 pr-12 py-3 rounded-xl text-sm text-white placeholder:text-white/20 bg-transparent outline-none"
+                    />
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Submit */}
                 <button
-                  type="button"
-                  tabIndex={-1}
-                  onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  id="email-auth-btn"
+                  type="submit"
+                  disabled={authLoading || googleLoading}
+                  className="login-btn-primary group flex items-center justify-center gap-2 w-full py-3 px-5 rounded-xl text-sm font-semibold transition-all disabled:opacity-60 disabled:pointer-events-none"
                 >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
+                  {authLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : null}
+                  {authLoading
+                    ? tab === "signin"
+                      ? "Signing in…"
+                      : "Creating account…"
+                    : tab === "signin"
+                    ? "Sign In with Email"
+                    : "Create Account"}
+                  {!authLoading && (
+                    <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
                   )}
                 </button>
+              </form>
+
+              {/* ── Footer note ── */}
+              <p className="text-center text-[11px] text-white/25 leading-relaxed">
+                Your data is encrypted and synced securely via Supabase.
+                <br />
+                All features work offline too.
+              </p>
+            </>
+          )}
+
+          {mode === "forgot" && (
+            <>
+              <div className="text-center space-y-1 -mt-2">
+                <h2 className="text-base font-semibold text-white">Reset your password</h2>
+                <p className="text-sm text-white/45">
+                  Enter your email and we'll send you a link to set a new password.
+                </p>
               </div>
-            </div>
+              <form onSubmit={handleSendResetLink} className="flex flex-col gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="reset-email" className="text-xs font-medium text-white/50 uppercase tracking-widest">
+                    Email
+                  </label>
+                  <div className="login-input-wrap relative">
+                    <Mail className="login-input-icon absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30 pointer-events-none" />
+                    <input
+                      id="reset-email"
+                      type="email"
+                      autoComplete="email"
+                      placeholder="name@example.com"
+                      value={resetEmail}
+                      onChange={(e) => setResetEmail(e.target.value)}
+                      className="login-input w-full pl-10 pr-4 py-3 rounded-xl text-sm text-white placeholder:text-white/20 bg-transparent outline-none"
+                    />
+                  </div>
+                </div>
+                <button
+                  type="submit"
+                  disabled={resetEmailLoading}
+                  className="login-btn-primary group flex items-center justify-center gap-2 w-full py-3 px-5 rounded-xl text-sm font-semibold transition-all disabled:opacity-60 disabled:pointer-events-none"
+                >
+                  {resetEmailLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  {resetEmailLoading ? "Sending…" : "Send Reset Link"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode("auth")}
+                  className="text-center text-xs font-medium text-white/40 hover:text-white/70 transition-colors"
+                >
+                  Back to sign in
+                </button>
+              </form>
+            </>
+          )}
 
-            {/* Submit */}
-            <button
-              id="email-auth-btn"
-              type="submit"
-              disabled={authLoading || googleLoading}
-              className="login-btn-primary group flex items-center justify-center gap-2 w-full py-3 px-5 rounded-xl text-sm font-semibold transition-all disabled:opacity-60 disabled:pointer-events-none"
-            >
-              {authLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : null}
-              {authLoading
-                ? tab === "signin"
-                  ? "Signing in…"
-                  : "Creating account…"
-                : tab === "signin"
-                ? "Sign In with Email"
-                : "Create Account"}
-              {!authLoading && (
-                <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
-              )}
-            </button>
-          </form>
-
-          {/* ── Footer note ── */}
-          <p className="text-center text-[11px] text-white/25 leading-relaxed">
-            Your data is encrypted and synced securely via Supabase.
-            <br />
-            All features work offline too.
-          </p>
+          {mode === "reset" && (
+            <>
+              <div className="text-center space-y-1 -mt-2">
+                <h2 className="text-base font-semibold text-white">Set a new password</h2>
+                <p className="text-sm text-white/45">
+                  Choose a new password for your account.
+                </p>
+              </div>
+              <form onSubmit={handleUpdatePassword} className="flex flex-col gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="new-password" className="text-xs font-medium text-white/50 uppercase tracking-widest">
+                    New Password
+                  </label>
+                  <div className="login-input-wrap relative">
+                    <Lock className="login-input-icon absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30 pointer-events-none" />
+                    <input
+                      id="new-password"
+                      type={showNewPassword ? "text" : "password"}
+                      autoComplete="new-password"
+                      placeholder="Min. 6 characters"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="login-input w-full pl-10 pr-12 py-3 rounded-xl text-sm text-white placeholder:text-white/20 bg-transparent outline-none"
+                    />
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() => setShowNewPassword((v) => !v)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
+                      aria-label={showNewPassword ? "Hide password" : "Show password"}
+                    >
+                      {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="confirm-password" className="text-xs font-medium text-white/50 uppercase tracking-widest">
+                    Confirm Password
+                  </label>
+                  <div className="login-input-wrap relative">
+                    <Lock className="login-input-icon absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30 pointer-events-none" />
+                    <input
+                      id="confirm-password"
+                      type={showNewPassword ? "text" : "password"}
+                      autoComplete="new-password"
+                      placeholder="Re-enter new password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="login-input w-full pl-10 pr-4 py-3 rounded-xl text-sm text-white placeholder:text-white/20 bg-transparent outline-none"
+                    />
+                  </div>
+                </div>
+                <button
+                  type="submit"
+                  disabled={newPasswordLoading}
+                  className="login-btn-primary group flex items-center justify-center gap-2 w-full py-3 px-5 rounded-xl text-sm font-semibold transition-all disabled:opacity-60 disabled:pointer-events-none"
+                >
+                  {newPasswordLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  {newPasswordLoading ? "Updating…" : "Update Password"}
+                </button>
+              </form>
+            </>
+          )}
         </div>
       </div>
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, useMemo } from "react";
+import { arrayMove } from "@dnd-kit/sortable";
 import type { Task, Quadrant } from "@/lib/types";
 import type { WorkspaceId } from "@/hooks/useWorkspace";
 import { useSync } from "@/context/SyncContext";
@@ -132,14 +133,21 @@ export function useTasks(workspace: WorkspaceId = "professional") {
       }
     }
 
-    const without = targetList.filter((t) => t.id !== activeId);
-    const moved: Task = { ...active, quadrant: dstQ };
-
     let inserted: Task[];
     if (anchorId) {
-      const idx = without.findIndex((t) => t.id === anchorId);
-      inserted = [...without.slice(0, idx), moved, ...without.slice(idx)];
+      // arrayMove's splice-based move naturally lands the dragged task after
+      // the drop target when moving forward (down) and before it when moving
+      // backward (up) — computed from indices in the original list, not one
+      // that's already had the active task removed. Unconditionally
+      // splicing-in "before the target" (the previous approach) only matched
+      // the upward case; dragging down always landed one slot short.
+      const oldIndex = targetList.findIndex((t) => t.id === activeId);
+      const newIndex = targetList.findIndex((t) => t.id === anchorId);
+      const reordered = arrayMove(targetList, oldIndex, newIndex);
+      inserted = reordered.map((t) => (t.id === activeId ? { ...t, quadrant: dstQ } : t));
     } else {
+      const without = targetList.filter((t) => t.id !== activeId);
+      const moved: Task = { ...active, quadrant: dstQ };
       const lastIdx = (() => {
         for (let i = without.length - 1; i >= 0; i--) {
           if (without[i].quadrant === dstQ) return i;

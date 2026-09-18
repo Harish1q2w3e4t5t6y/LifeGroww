@@ -26,16 +26,17 @@ interface Props {
   dragging?: boolean;
 }
 
+// Each priority and status gets its own distinct color family.
 const PRIORITY_BG: Record<Priority, string> = {
-  low: "bg-green-50 border-green-200 dark:bg-green-950/50 dark:border-green-900/60",
-  medium: "bg-yellow-50 border-yellow-200 dark:bg-yellow-950/50 dark:border-yellow-900/60",
-  high: "bg-red-50 border-red-200 dark:bg-red-950/50 dark:border-red-900/60",
+  low: "bg-emerald-50 border-emerald-200 dark:bg-emerald-950/50 dark:border-emerald-900/60",
+  medium: "bg-[#F3E5D3] border-[#D9BE9C] dark:bg-[#3B2A1B]/60 dark:border-[#5C4429]",
+  high: "bg-rose-50 border-rose-200 dark:bg-rose-950/50 dark:border-rose-900/60",
 };
 
 const PRIORITY_ICON: Record<Priority, string> = {
-  low: "text-green-600 dark:text-green-400",
-  medium: "text-yellow-600 dark:text-yellow-400",
-  high: "text-red-600 dark:text-red-400",
+  low: "text-emerald-600 dark:text-emerald-400",
+  medium: "text-[#8B5A2B] dark:text-[#D2A465]",
+  high: "text-rose-600 dark:text-rose-400",
 };
 
 const PRIORITY_LABEL: Record<Priority, string> = {
@@ -51,13 +52,11 @@ const STATUS_BADGE: Record<TaskStatus, { label: string; className: string }> = {
   },
   in_progress: {
     label: "In Progress",
-    className:
-      "bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-500/20 dark:text-orange-300 dark:border-orange-500/30",
+    className: "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/30",
   },
   done: {
     label: "Done",
-    className:
-      "bg-green-100 text-green-700 border-green-200 dark:bg-green-500/20 dark:text-green-300 dark:border-green-500/30",
+    className: "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/30",
   },
 };
 

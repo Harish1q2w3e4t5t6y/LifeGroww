@@ -59,13 +59,25 @@ export function RecurringTasksManagerDialog({ open, onOpenChange, habitsList }: 
     return null;
   };
 
+  // Same quadrant identity used on the Matrix page (see index.css q1-q4
+  // tokens), so this dialog reads as part of the same system, not a
+  // separately-styled admin screen.
+  const QUADRANT_BADGE: Record<string, { label: string; className: string }> = {
+    q1: { label: "Do", className: "bg-q1/15 text-q1-foreground border-q1/30" },
+    q2: { label: "Schedule", className: "bg-q2/15 text-q2-foreground border-q2/30" },
+    q3: { label: "Delegate", className: "bg-q3/15 text-q3-foreground border-q3/30" },
+    q4: { label: "Delete", className: "bg-q4/15 text-q4-foreground border-q4/30" },
+  };
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[620px] bg-neutral-950 text-white border border-white/10 p-5 rounded-lg shadow-xl z-50">
-          <DialogHeader className="flex flex-row items-center justify-between pb-2 border-b border-white/10">
-            <DialogTitle className="text-sm font-semibold tracking-tight text-white/90 flex items-center gap-1.5">
-              <CalendarClock className="h-4 w-4 text-primary" />
+        <DialogContent className="sm:max-w-[620px] bg-neutral-950 text-white border border-white/10 p-5 rounded-xl shadow-2xl z-50">
+          <DialogHeader className="flex flex-row items-center justify-between pb-3 border-b border-white/10">
+            <DialogTitle className="text-sm font-semibold tracking-tight text-white/90 flex items-center gap-2">
+              <span className="h-7 w-7 rounded-lg grid place-items-center bg-primary text-primary-foreground shadow-[0_0_16px_-3px_hsl(var(--primary)/0.7)]">
+                <CalendarClock className="h-3.5 w-3.5" />
+              </span>
               <span>Recurring Tasks Manager</span>
             </DialogTitle>
             <button
@@ -73,8 +85,7 @@ export function RecurringTasksManagerDialog({ open, onOpenChange, habitsList }: 
                 setEditingConfig(undefined);
                 setEditorOpen(true);
               }}
-              className="h-7 px-3 flex items-center gap-1 rounded bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition-opacity"
-              style={{ background: "var(--dashboard-accent, #10b981)" }}
+              className="h-7 px-3 flex items-center gap-1 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition-opacity"
             >
               <Plus className="h-3.5 w-3.5" />
               <span>New Task</span>
@@ -83,11 +94,11 @@ export function RecurringTasksManagerDialog({ open, onOpenChange, habitsList }: 
 
           <div className="space-y-3 py-2 text-xs max-h-[350px] overflow-y-auto pr-1">
             {configs.length === 0 ? (
-              <div className="py-12 text-center text-white/40 border border-dashed border-white/10 rounded-md">
+              <div className="py-12 text-center text-white/40 border border-dashed border-white/15 rounded-xl">
                 No recurring tasks configured. Create one to automate your matrix!
               </div>
             ) : (
-              <div className="overflow-x-auto border border-white/10 rounded-md">
+              <div className="overflow-x-auto border border-white/10 rounded-xl">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="bg-white/5 text-white/50 border-b border-white/10">
@@ -103,8 +114,9 @@ export function RecurringTasksManagerDialog({ open, onOpenChange, habitsList }: 
                   <tbody>
                     {configs.map((config) => {
                       const habitMeta = config.habitId ? findHabitMeta(config.habitId) : null;
+                      const quadrantBadge = QUADRANT_BADGE[config.quadrant];
                       return (
-                        <tr key={config.id} className="hover:bg-white/[0.02] border-b border-white/5">
+                        <tr key={config.id} className="hover:bg-white/[0.03] transition-colors border-b border-white/5">
                           <td className="p-2 font-medium">{config.taskName}</td>
                           <td className="p-2 text-white/60">
                             {habitMeta ? (
@@ -120,15 +132,12 @@ export function RecurringTasksManagerDialog({ open, onOpenChange, habitsList }: 
                             {config.workspace === "personal" ? "🏠 Personal" : "💼 Professional"}
                           </td>
                           <td className="p-2">
-                            <span className="px-1.5 py-0.5 rounded bg-white/5 text-[9px] uppercase font-semibold">
-                              {config.quadrant === "q1" ? "Q1: Do" :
-                               config.quadrant === "q2" ? "Q2: Schedule" :
-                               config.quadrant === "q3" ? "Q3: Delegate" :
-                               "Q4: Delete"}
+                            <span className={`px-1.5 py-0.5 rounded border text-[9px] uppercase font-semibold ${quadrantBadge.className}`}>
+                              {quadrantBadge.label}
                             </span>
                           </td>
                           <td className="p-2 text-white/60 capitalize">
-                            {config.schedule === "custom" 
+                            {config.schedule === "custom"
                               ? `Every ${config.customValue} ${config.customUnit}`
                               : config.schedule}
                           </td>
@@ -142,7 +151,7 @@ export function RecurringTasksManagerDialog({ open, onOpenChange, habitsList }: 
                               className={`px-2 py-0.5 rounded text-[9px] font-semibold border ${
                                 config.enabled
                                   ? "bg-emerald-950/40 text-emerald-400 border-emerald-500/30"
-                                  : "bg-red-950/40 text-red-400 border-red-500/30"
+                                  : "bg-rose-950/40 text-rose-400 border-rose-500/30"
                               }`}
                             >
                               {config.enabled ? "Active" : "Disabled"}
@@ -162,7 +171,7 @@ export function RecurringTasksManagerDialog({ open, onOpenChange, habitsList }: 
                               </button>
                               <button
                                 onClick={() => handleDeleteConfig(config.id)}
-                                className="p-1 hover:bg-red-950/40 rounded text-red-400/80 hover:text-red-400"
+                                className="p-1 hover:bg-rose-950/40 rounded text-rose-400/80 hover:text-rose-400"
                                 title="Delete"
                               >
                                 <Trash2 className="h-3 w-3" />

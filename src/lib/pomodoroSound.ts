@@ -1,11 +1,19 @@
-// Pomodoro tick + meditation bell. Tick is scheduled directly on AudioContext
-// clock so ticks stay synchronized with the countdown seconds.
+// Pomodoro tick + meditation bell.
+//
+// The tick used to run on its own independent setTimeout chain, re-derived
+// from Date.now() and only loosely aligned to the seconds shown on screen
+// (the display uses Math.round, the old scheduler aligned to raw
+// millisecond-boundary crossings — a mismatch of up to ~500ms, on top of
+// setTimeout's own jitter). That's what caused the audible drift. There is
+// no independent scheduling now: playTick() is called directly by the
+// component, in the same effect that already recomputes the on-screen
+// countdown — so the sound literally cannot land on a different second than
+// the number does.
 import { isSoundEnabled } from "./soundSettings";
 
 let ctx: AudioContext | null = null;
 let tickGain: GainNode | null = null;
-let tickTimeout: number | null = null;
-let activeEndsAt: number | null = null;
+let tickCount = 0;
 
 function getCtx(): AudioContext | null {
   if (typeof window === "undefined") return null;
@@ -19,56 +27,60 @@ function getCtx(): AudioContext | null {
   return ctx;
 }
 
+// A short burst of filtered noise (not a pure tone) reads as a mechanical
+// "click" the way a real clock escapement sounds, rather than an electronic
+// blip. Alternating the filter's center frequency between calls gives the
+// classic tick / tock timbre difference of a real clock.
+function noiseBurst(c: AudioContext, durationSec: number): AudioBuffer {
+  const length = Math.max(1, Math.floor(c.sampleRate * durationSec));
+  const buffer = c.createBuffer(1, length, c.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
+  return buffer;
+}
+
 function playTickNow() {
   const c = getCtx();
   if (!c || !tickGain) return;
-  const osc = c.createOscillator();
+  tickCount += 1;
+  const isTick = tickCount % 2 === 1;
+
+  const noise = c.createBufferSource();
+  noise.buffer = noiseBurst(c, 0.03);
+
+  const filter = c.createBiquadFilter();
+  filter.type = "bandpass";
+  filter.frequency.value = isTick ? 2600 : 1900;
+  filter.Q.value = 3.5;
+
   const g = c.createGain();
-  osc.type = "triangle";
-  osc.frequency.value = 1800;
   const t0 = c.currentTime;
   g.gain.setValueAtTime(0.0001, t0);
-  g.gain.exponentialRampToValueAtTime(1, t0 + 0.004);
-  g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.06);
-  osc.connect(g).connect(tickGain);
-  osc.start(t0);
-  osc.stop(t0 + 0.08);
+  g.gain.exponentialRampToValueAtTime(1, t0 + 0.002);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.035);
+
+  noise.connect(filter).connect(g).connect(tickGain);
+  noise.start(t0);
+  noise.stop(t0 + 0.05);
 }
 
-function scheduleNextTick() {
-  if (activeEndsAt === null) return;
-  const now = Date.now();
-  const remaining = activeEndsAt - now;
-  if (remaining <= 0) return;
-  // Next display-second boundary: countdown decrements each time
-  // (endsAt - now) crosses a whole-second mark.
-  const delay = remaining % 1000 === 0 ? 1000 : remaining % 1000;
-  tickTimeout = window.setTimeout(() => {
-    playTickNow();
-    scheduleNextTick();
-  }, delay);
-}
-
-export function startTicking(endsAt: number) {
+// Enables the tick output. Call once when a session starts (or unmutes) —
+// does not itself schedule anything; the caller decides exactly when each
+// tick fires by calling playTick().
+export function startTicking() {
   if (!isSoundEnabled("pomoTick")) {
     stopTicking();
     return;
   }
   const c = getCtx();
   if (!c) return;
-  stopTicking();
+  if (tickGain) return;
   tickGain = c.createGain();
   tickGain.gain.value = 0.7;
   tickGain.connect(c.destination);
-  activeEndsAt = endsAt;
-  scheduleNextTick();
 }
 
 export function stopTicking() {
-  if (tickTimeout !== null) {
-    window.clearTimeout(tickTimeout);
-    tickTimeout = null;
-  }
   if (tickGain) {
     try {
       tickGain.disconnect();
@@ -77,7 +89,13 @@ export function stopTicking() {
     }
     tickGain = null;
   }
-  activeEndsAt = null;
+}
+
+// Plays exactly one tick. Call this from the same place that updates the
+// visible countdown, so the sound and the number change together.
+export function playTick() {
+  if (!tickGain) return;
+  playTickNow();
 }
 
 // Calming meditation-style bell (~3s decay). Layered sines with harmonics.

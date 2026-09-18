@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { fetchSettings, saveSetting } from "@/lib/db";
-import { Play, Pause, RotateCcw, Volume2, VolumeX, Settings } from "lucide-react";
+import { Play, Pause, RotateCcw, Volume2, VolumeX, Settings, Minimize2, Flame } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -9,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import {
   startTicking,
   stopTicking,
+  playTick,
   playWorkEndSound,
   playBreakEndSound,
 } from "@/lib/pomodoroSound";
@@ -73,11 +75,32 @@ export function PomodoroTimer() {
   const [state, setState] = useState<PomoState>(() => loadState());
   const [now, setNow] = useState(() => Date.now());
   const tickingActive = useRef(false);
+  const [overlayDismissed, setOverlayDismissed] = useState(false);
+  const [overlayMounted, setOverlayMounted] = useState(false);
 
   const remaining =
     state.running && state.endsAt !== null
       ? Math.max(0, Math.round((state.endsAt - now) / 1000))
       : state.remaining;
+
+  const isFocus = state.mode === "focus";
+  const focusModeActive = state.running && isFocus;
+
+  // A fresh focus session should always show the fade-out overlay, even if
+  // the person dismissed it during a previous session.
+  useEffect(() => {
+    if (focusModeActive) setOverlayDismissed(false);
+  }, [focusModeActive]);
+
+  // Mount the overlay a tick after it should show, so the opacity/blur
+  // transition actually has a starting state to animate from.
+  useEffect(() => {
+    if (focusModeActive && !overlayDismissed) {
+      const t = setTimeout(() => setOverlayMounted(true), 20);
+      return () => clearTimeout(t);
+    }
+    setOverlayMounted(false);
+  }, [focusModeActive, overlayDismissed]);
 
   // Persist full timer state to localStorage (for page-refresh continuity).
   useEffect(() => {
@@ -115,14 +138,17 @@ export function PomodoroTimer() {
 
   useEffect(() => {
     if (!state.running) return;
-    const id = window.setInterval(() => setNow(Date.now()), 250);
+    // Fast enough that this loop — not the tick's own timer — decides
+    // exactly when the displayed second changes, so a tick tied to that
+    // change lands within ~100ms of the real boundary instead of ~500ms+.
+    const id = window.setInterval(() => setNow(Date.now()), 100);
     return () => window.clearInterval(id);
   }, [state.running]);
 
   useEffect(() => {
     const shouldTick = state.running && !state.muted && state.endsAt !== null;
-    if (shouldTick && state.endsAt !== null) {
-      startTicking(state.endsAt);
+    if (shouldTick) {
+      startTicking();
       tickingActive.current = true;
     } else if (!shouldTick && tickingActive.current) {
       stopTicking();
@@ -135,6 +161,22 @@ export function PomodoroTimer() {
       }
     };
   }, [state.running, state.muted, state.endsAt]);
+
+  // The single source of truth for "when did the countdown's second change" —
+  // the same `remaining` value rendered on screen. Playing the tick here,
+  // and only here, is what guarantees sound and display can't drift apart.
+  const prevRemainingRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!state.running || state.muted) {
+      prevRemainingRef.current = null;
+      return;
+    }
+    const prev = prevRemainingRef.current;
+    prevRemainingRef.current = remaining;
+    if (prev !== null && remaining !== prev) {
+      playTick();
+    }
+  }, [remaining, state.running, state.muted]);
 
   useEffect(() => {
     if (!state.running || state.endsAt === null) return;
@@ -206,8 +248,6 @@ export function PomodoroTimer() {
       return { ...s, focusMin: f, breakMin: b, remaining: newRemaining };
     });
   }, []);
-
-  const isFocus = state.mode === "focus";
 
   return (
     <div className="group flex items-center gap-1.5 rounded-md border border-border/60 bg-card/70 px-2 py-1 text-xs shadow-sm">
@@ -301,6 +341,114 @@ export function PomodoroTimer() {
           </PopoverContent>
         </Popover>
       </div>
+
+      {focusModeActive && !overlayDismissed && (
+        <FocusOverlay
+          mounted={overlayMounted}
+          remaining={remaining}
+          focusMin={state.focusMin}
+          muted={state.muted}
+          onPause={pause}
+          onToggleMute={toggleMute}
+          onDismiss={() => setOverlayDismissed(true)}
+        />
+      )}
+
+      {focusModeActive && overlayDismissed && (
+        <button
+          onClick={() => setOverlayDismissed(false)}
+          className="fixed bottom-5 right-5 z-[100] h-11 px-4 flex items-center gap-2 rounded-full bg-primary text-primary-foreground text-xs font-semibold shadow-[0_0_20px_-4px_hsl(var(--primary)/0.7)] hover:opacity-90 transition-opacity"
+        >
+          <Flame className="h-3.5 w-3.5" />
+          Back to Focus · {format(remaining)}
+        </button>
+      )}
     </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Distraction Fade-Out Focus Mode — a full-screen overlay shown while a focus
+   session is running. Everything else stays mounted underneath, untouched;
+   the blurred backdrop is what makes it fade away, not per-element changes.
+───────────────────────────────────────────────────────────────────────────── */
+function FocusOverlay({
+  mounted,
+  remaining,
+  focusMin,
+  muted,
+  onPause,
+  onToggleMute,
+  onDismiss,
+}: {
+  mounted: boolean;
+  remaining: number;
+  focusMin: number;
+  muted: boolean;
+  onPause: () => void;
+  onToggleMute: () => void;
+  onDismiss: () => void;
+}) {
+  const totalSec = focusMin * 60;
+  const progressPct = totalSec > 0 ? Math.min(100, Math.max(0, ((totalSec - remaining) / totalSec) * 100)) : 0;
+
+  return createPortal(
+    <div
+      className={cn(
+        "fixed inset-0 z-[100] flex flex-col items-center justify-center gap-8 transition-all duration-700",
+        mounted ? "opacity-100 backdrop-blur-2xl bg-background/75" : "opacity-0 backdrop-blur-none bg-background/0"
+      )}
+    >
+      <button
+        onClick={onDismiss}
+        className="absolute top-4 right-4 sm:top-6 sm:right-6 h-9 w-9 grid place-items-center rounded-full border border-border/60 bg-card/70 text-muted-foreground hover:text-foreground hover:bg-card transition-colors"
+        aria-label="Peek at your matrix (timer keeps running)"
+        title="Peek at your matrix — timer keeps running"
+      >
+        <Minimize2 className="h-4 w-4" />
+      </button>
+
+      <div
+        className={cn(
+          "flex flex-col items-center gap-6 transition-all duration-700 delay-100",
+          mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"
+        )}
+      >
+        <div className="flex items-center gap-2 text-primary">
+          <Flame className="h-4 w-4" />
+          <span className="text-xs font-semibold uppercase tracking-[0.2em]">Focus</span>
+        </div>
+
+        <div className="font-mono tabular-nums text-7xl sm:text-8xl md:text-9xl font-bold text-foreground [text-shadow:0_0_60px_hsl(var(--primary)/0.35)]">
+          {format(remaining)}
+        </div>
+
+        <div className="w-64 sm:w-80 h-1 rounded-full bg-border/50 overflow-hidden">
+          <div
+            className="h-full rounded-full bg-primary transition-all duration-1000 ease-linear"
+            style={{ width: `${progressPct}%` }}
+          />
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onPause}
+            className="h-11 px-5 flex items-center gap-2 rounded-full bg-primary text-primary-foreground text-sm font-semibold shadow-[0_0_24px_-4px_hsl(var(--primary)/0.7)] hover:opacity-90 transition-opacity"
+          >
+            <Pause className="h-4 w-4" />
+            Pause
+          </button>
+          <button
+            onClick={onToggleMute}
+            className="h-11 w-11 grid place-items-center rounded-full border border-border/60 bg-card/70 text-muted-foreground hover:text-foreground transition-colors"
+            aria-label={muted ? "Unmute" : "Mute"}
+            title={muted ? "Unmute" : "Mute"}
+          >
+            {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 }

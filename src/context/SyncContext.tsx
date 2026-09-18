@@ -24,7 +24,7 @@ interface SyncContextType {
   pendingOps: string[];
 
   updateTasks: (workspace: string, newTasks: Task[]) => Promise<void>;
-  updateHabits: (newHabits: HabitsStore) => Promise<void>;
+  updateHabits: (updater: HabitsStore | ((prev: HabitsStore) => HabitsStore)) => Promise<void>;
   updateSetting: (key: string, value: unknown) => Promise<void>;
   forceSync: () => Promise<void>;
 }
@@ -57,7 +57,7 @@ const loadLocalDirty = (): Record<string, boolean> => {
 };
 
 export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   
   // App States initialized to clean defaults (localStorage reads bypassed as primary source of truth)
   const [tasks, setTasksState] = useState<Record<string, Task[]>>({ personal: [], professional: [] });
@@ -82,6 +82,11 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const dirtyRef = useRef<Record<string, boolean>>(loadLocalDirty());
   const syncInProgress = useRef<boolean>(false);
   const retryTimer = useRef<number | null>(null);
+
+  // Serializes updateHabits calls so rapid/concurrent mutations (e.g. fast checkbox
+  // clicks) each build on the previous one's result instead of racing off the same
+  // stale base and silently dropping one of the changes.
+  const habitsWriteQueue = useRef<Promise<void>>(Promise.resolve());
 
   // Stores the last habits shape confirmed from Supabase — used for defensive payload validation.
   // This prevents any code path from reducing habit data back to zero unexpectedly.
@@ -321,6 +326,17 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     };
 
+    // While AuthContext is still checking for an existing session, `user` is
+    // `null` for the same reason it would be if you were genuinely logged
+    // out — we can't tell those two cases apart from `user` alone. Deciding
+    // "no user" here prematurely is what opened the empty-state window: the
+    // app would render fully interactive with blank data for a moment on
+    // every reload, and any click during that window got saved as "offline"
+    // local data that then overwrote the real server data once the real
+    // session resolved. Waiting for `authLoading` to resolve closes that
+    // window — the loading screen stays up until we know for certain.
+    if (authLoading) return;
+
     const userId = user?.id;
     if (userId) {
       setIsInitialized(false);
@@ -331,7 +347,7 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSettingsState({ appSettings: { accent: "blue", reportLayout: "compact", showCompleted: true }, workspace: "professional", theme: "dark" });
       setIsInitialized(true);
     }
-  }, [user?.id]);
+  }, [user?.id, authLoading]);
 
   // Mutation Methods - Wait-for-Server confirmation before updating local state when online
   const updateTasks = useCallback(async (workspace: string, newTasks: Task[]) => {
@@ -413,15 +429,28 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [isOnline, user, isInitialized]);
 
-  const updateHabits = useCallback(async (newHabits: HabitsStore) => {
+  const updateHabits = useCallback((updater: HabitsStore | ((prev: HabitsStore) => HabitsStore)) => {
+    const run = async () => {
     if (!isInitialized) return;
-    
+
+    // Always build off the most recently queued result, not a snapshot the caller
+    // may have captured before an earlier update finished — this is what closes the
+    // race where two rapid mutations both read the same stale base and one clobbers
+    // the other's write.
+    const oldHabits = habitsRef.current;
+    const newHabits = typeof updater === "function"
+      ? (updater as (prev: HabitsStore) => HabitsStore)(oldHabits)
+      : updater;
+
+    // Publish immediately so the next queued call (and any other ref reader) sees
+    // this as the base, even before the network write below settles.
+    habitsRef.current = newHabits;
+
     let updatedTasks = { ...tasksRef.current };
     let tasksChanged = false;
     const configs = Array.isArray(settingsRef.current.recurringConfigs) ? (settingsRef.current.recurringConfigs as RecurringConfig[]) : [];
 
     if (configs.length > 0) {
-      const oldHabits = habitsRef.current;
       const newMonths = newHabits.months || {};
       const oldMonths = oldHabits.months || {};
 
@@ -502,6 +531,7 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
           `[SafetyGuard] ❌ BLOCKED updateHabits: payload would reduce habit months from ${knownMonths} → 0.`,
           "Aborting to prevent data loss. Investigate the call stack above."
         );
+        habitsRef.current = oldHabits;
         setSyncStatus("failed");
         setLastError("Safety guard: refusing to overwrite existing habit data with empty state. Please refresh.");
         return;
@@ -541,8 +571,14 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const errMsg = getErrorMessage(err);
       console.warn("[SyncEngine] Server habits write failed:", errMsg);
       setSyncStatus("failed");
+      habitsRef.current = oldHabits;
       setLastError(errMsg || "Write failed");
     }
+    };
+
+    const next = habitsWriteQueue.current.then(run, run);
+    habitsWriteQueue.current = next;
+    return next;
   }, [isOnline, user, isInitialized]);
 
   const updateSetting = useCallback(async (key: string, value: unknown) => {
