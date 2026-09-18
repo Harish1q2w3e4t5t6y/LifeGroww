@@ -228,7 +228,7 @@ export function TaskCard({
           style={{ transform: priorityWiping ? "scaleX(1)" : "scaleX(0)" }}
         />
       )}
-      <div className="relative z-10 flex items-center gap-2 w-full">
+      <div className="relative z-10 flex flex-wrap items-center gap-1.5 w-full">
       <Checkbox
         checked={task.completed}
         onCheckedChange={handleToggle}
@@ -259,7 +259,7 @@ export function TaskCard({
           className="h-6 px-1 border-0 shadow-none focus-visible:ring-0 text-[13px] flex-1"
         />
       ) : (
-        <div className="flex-1 flex items-center gap-1.5 min-w-0">
+        <div className="flex-1 flex items-center gap-1.5 min-w-[90px]">
           <p
             className={cn(
               "text-[13px] leading-tight break-words min-w-0 flex-1 max-h-[2.4em] overflow-y-auto pr-0.5",
@@ -285,6 +285,10 @@ export function TaskCard({
         </div>
       )}
 
+      {/* Action icons wrap onto their own row as a group on narrow screens
+          instead of individually squeezing the title down to a few
+          characters per line. */}
+      <div className="flex items-center gap-0.5 ml-auto shrink-0">
       {!editing && (
         <button
           onPointerDown={(e) => e.stopPropagation()}
@@ -438,6 +442,7 @@ export function TaskCard({
           <X className="h-3.5 w-3.5" />
         </button>
       )}
+      </div>
       </div>
     </div>
   );
