@@ -262,7 +262,9 @@ export function TaskCard({
         <div className="flex-1 flex items-center gap-1.5 min-w-[90px]">
           <p
             className={cn(
-              "text-[13px] leading-tight min-w-0 flex-1 pr-0.5",
+              // Smaller text on mobile so more of the title fits per line
+              // (cards are half-width there, in the 2x2 grid).
+              "text-[11px] sm:text-[13px] leading-tight min-w-0 flex-1 pr-0.5",
               // Full title text on every breakpoint, wrapping up to ~2 lines
               // with internal scroll for anything longer. The quadrant panel
               // itself scrolls for overflow, so taller cards on mobile don't
