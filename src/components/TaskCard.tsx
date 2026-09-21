@@ -263,10 +263,11 @@ export function TaskCard({
           <p
             className={cn(
               "text-[13px] leading-tight min-w-0 flex-1 pr-0.5",
-              // Mobile: single line, truncated with "..." — columns are half-width
-              // there now, so full wrapping just looks messy. Tablet/desktop keep
-              // the original multi-line (up to ~2 lines, scrollable) behavior.
-              "truncate sm:whitespace-normal sm:break-words sm:max-h-[2.4em] sm:overflow-y-auto",
+              // Full title text on every breakpoint, wrapping up to ~2 lines
+              // with internal scroll for anything longer. The quadrant panel
+              // itself scrolls for overflow, so taller cards on mobile don't
+              // break the single-screen Matrix layout.
+              "whitespace-normal break-words max-h-[2.4em] overflow-y-auto",
               task.completed && "line-through"
             )}
             title={task.title}
