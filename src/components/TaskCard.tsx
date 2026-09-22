@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { Task, TaskStatus, Priority } from "@/lib/types";
 import { playCompleteSound } from "@/lib/sound";
+import { useAppSettings } from "@/hooks/useAppSettings";
+import { fireTaskCompleteEffect } from "@/lib/taskCompleteEffectBus";
 
 const NEXT_PRIORITY: Record<Priority, Priority> = {
   low: "medium",
@@ -113,8 +115,33 @@ export function TaskCard({
   // the underlying data actually changes, instead of the row just vanishing
   // the instant the checkbox toggles. Re-opening a completed task (unchecking
   // it) skips this — there's nothing leaving in that direction.
+  //
+  // This exit ONLY plays when the row is actually about to disappear from
+  // the list (showCompleted is off, so the parent will filter it out right
+  // after). When showCompleted is on, the same task stays at the same spot
+  // in the array — React keeps reusing this exact component instance — so
+  // collapsing it here would leave it permanently stuck at 0 height/opacity
+  // with nothing to ever reset `leaving` back to false. Completing a task
+  // in that mode just flips its data in place instead; the row re-renders
+  // with its normal "done" styling (checked box, strikethrough) rather than
+  // vanishing.
   const [leaving, setLeaving] = useState(false);
   const EXIT_MS = 260;
+
+  useEffect(() => {
+    if (!task.completed) setLeaving(false);
+  }, [task.completed]);
+
+  // For non-"classic" completion animations, a big fullscreen effect plays
+  // on top of the whole page (fired via the bus to <TaskCompleteEffectHost>
+  // at the app root — see taskCompleteEffectBus.ts for why it can't just
+  // render locally), launched from this row's on-screen position at the
+  // moment it's checked off. It's entirely decoupled from `leaving` below —
+  // the row still collapses out of the list at its normal fast pace
+  // regardless of how long the celebratory overlay takes, so completing
+  // several tasks quickly never feels blocked by the animation.
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const { completionAnimation, showCompleted } = useAppSettings();
 
   // Priority color change wipes in from the flag button's side (right) instead
   // of the background snapping instantly. `baseColorPriority` is what the row's
@@ -147,6 +174,20 @@ export function TaskCard({
       return;
     }
     playCompleteSound();
+    if (completionAnimation !== "classic" && cardRef.current) {
+      const rect = cardRef.current.getBoundingClientRect();
+      fireTaskCompleteEffect({
+        type: completionAnimation,
+        origin: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+        title: task.title,
+      });
+    }
+    if (showCompleted) {
+      // The row is staying put — just flip the data so it re-renders with
+      // its normal "done" styling, no collapse.
+      onToggle(task.id);
+      return;
+    }
     setLeaving(true);
     window.setTimeout(() => onToggle(task.id), EXIT_MS);
   };
@@ -184,7 +225,10 @@ export function TaskCard({
 
   return (
     <div
-      ref={setNodeRef}
+      ref={(el) => {
+        setNodeRef(el);
+        cardRef.current = el;
+      }}
       style={{
         transform: CSS.Translate.toString(transform),
         // Explicit property list (not a plain "all") so this doesn't silently

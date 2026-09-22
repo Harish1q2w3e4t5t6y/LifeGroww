@@ -1,8 +1,9 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useSync } from "@/context/SyncContext";
 
 export type Accent = "blue" | "green" | "purple" | "orange" | "red";
 export type ReportLayout = "compact" | "balanced" | "focus" | "large" | "xl" | "max";
+export type CompletionAnimation = "classic" | "ink";
 
 const ACCENTS: Accent[] = ["blue", "green", "purple", "orange", "red"];
 
@@ -30,17 +31,38 @@ export const REPORT_LAYOUTS: {
 
 export const DEFAULT_LAYOUT: ReportLayout = "compact";
 
+export const COMPLETION_ANIMATIONS: { id: CompletionAnimation; label: string; description: string }[] = [
+  { id: "classic", label: "Classic", description: "Simple shrink & fade" },
+  { id: "ink", label: "Ink Dissolve", description: "Dissolves into drifting ink particles" },
+];
+
+export const DEFAULT_COMPLETION_ANIMATION: CompletionAnimation = "ink";
+
 interface Settings {
   accent: Accent;
   reportLayout: ReportLayout;
   showCompleted: boolean;
+  completionAnimation: CompletionAnimation;
 }
 
-const DEFAULTS: Settings = { accent: "blue", reportLayout: DEFAULT_LAYOUT, showCompleted: true };
+const DEFAULTS: Settings = {
+  accent: "blue",
+  reportLayout: DEFAULT_LAYOUT,
+  showCompleted: true,
+  completionAnimation: DEFAULT_COMPLETION_ANIMATION,
+};
 
 export function useAppSettings() {
   const { settings, updateSetting } = useSync();
-  const appSettings: Settings = settings.appSettings || DEFAULTS;
+  // Merge per-field so existing accounts saved before a new setting (e.g.
+  // completionAnimation) was added still get that field's default instead
+  // of undefined. Memoized so it's referentially stable across renders
+  // where settings.appSettings hasn't changed (the callbacks below depend
+  // on it).
+  const appSettings: Settings = useMemo(
+    () => ({ ...DEFAULTS, ...(settings.appSettings as Partial<Settings> | undefined) }),
+    [settings.appSettings]
+  );
 
   // Sync accent classes to DOM
   useEffect(() => {
@@ -78,7 +100,14 @@ export function useAppSettings() {
     [appSettings, updateSetting]
   );
 
-  return { ...appSettings, setAccent, setReportLayout, resetReportLayout, setShowCompleted };
+  const setCompletionAnimation = useCallback(
+    async (completionAnimation: CompletionAnimation) => {
+      await updateSetting("appSettings", { ...appSettings, completionAnimation });
+    },
+    [appSettings, updateSetting]
+  );
+
+  return { ...appSettings, setAccent, setReportLayout, resetReportLayout, setShowCompleted, setCompletionAnimation };
 }
 
 export function getReportLayoutRows(id: ReportLayout): string {

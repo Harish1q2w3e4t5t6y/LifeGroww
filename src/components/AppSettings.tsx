@@ -5,7 +5,15 @@ import { cn } from "@/lib/utils";
 import { useTheme } from "@/hooks/useTheme";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   ACCENT_META,
+  COMPLETION_ANIMATIONS,
   REPORT_LAYOUTS,
   useAppSettings,
   type Accent,
@@ -20,8 +28,17 @@ export function AppSettingsButton({
 }) {
   const [open, setOpen] = useState(false);
   const { theme, toggle } = useTheme();
-  const { accent, reportLayout, showCompleted: localShowCompleted, setAccent, setReportLayout, resetReportLayout, setShowCompleted: localSetShowCompleted } =
-    useAppSettings();
+  const {
+    accent,
+    reportLayout,
+    showCompleted: localShowCompleted,
+    completionAnimation,
+    setAccent,
+    setReportLayout,
+    resetReportLayout,
+    setShowCompleted: localSetShowCompleted,
+    setCompletionAnimation,
+  } = useAppSettings();
 
   const showCompleted = propShowCompleted !== undefined ? propShowCompleted : localShowCompleted;
   const setShowCompleted = propSetShowCompleted !== undefined ? propSetShowCompleted : localSetShowCompleted;
@@ -126,6 +143,28 @@ export function AppSettingsButton({
           <div className="text-[10px] text-muted-foreground">
             Applies to Habit Tracker charts.
           </div>
+        </div>
+
+        {/* Task complete animation */}
+        <div className="space-y-1.5 pt-2.5 border-t border-border">
+          <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+            Task Complete Animation
+          </div>
+          <Select value={completionAnimation} onValueChange={setCompletionAnimation}>
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {COMPLETION_ANIMATIONS.map((a) => (
+                <SelectItem key={a.id} value={a.id} className="text-xs">
+                  <div>
+                    <div className="font-medium">{a.label}</div>
+                    <div className="text-muted-foreground text-[10px]">{a.description}</div>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Hide Completed Tasks */}
