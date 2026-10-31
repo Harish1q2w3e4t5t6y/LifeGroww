@@ -221,6 +221,11 @@
     max-width: 100vw;
   }
 
+  /* No grey flash on tap, like a native app */
+  button, a, [role="checkbox"] {
+    -webkit-tap-highlight-color: transparent;
+  }
+
   /* Minimum touch target for interactive elements */
   .touch-target {
     min-width: 44px;

@@ -3,7 +3,7 @@ import { useSync } from "@/context/SyncContext";
 
 export type Accent = "blue" | "green" | "purple" | "orange" | "red";
 export type ReportLayout = "compact" | "balanced" | "focus" | "large" | "xl" | "max";
-export type CompletionAnimation = "classic" | "ink";
+export type CompletionAnimation = "classic" | "ink" | "laser" | "liquid";
 
 const ACCENTS: Accent[] = ["blue", "green", "purple", "orange", "red"];
 
@@ -34,6 +34,8 @@ export const DEFAULT_LAYOUT: ReportLayout = "compact";
 export const COMPLETION_ANIMATIONS: { id: CompletionAnimation; label: string; description: string }[] = [
   { id: "classic", label: "Classic", description: "Simple shrink & fade" },
   { id: "ink", label: "Ink Dissolve", description: "Dissolves into drifting ink particles" },
+  { id: "laser", label: "Sci-Fi Disintegration", description: "Laser sweep with neon embers" },
+  { id: "liquid", label: "Liquid Splash", description: "Bursts into glowing droplets" },
 ];
 
 export const DEFAULT_COMPLETION_ANIMATION: CompletionAnimation = "ink";
@@ -59,10 +61,13 @@ export function useAppSettings() {
   // of undefined. Memoized so it's referentially stable across renders
   // where settings.appSettings hasn't changed (the callbacks below depend
   // on it).
-  const appSettings: Settings = useMemo(
-    () => ({ ...DEFAULTS, ...(settings.appSettings as Partial<Settings> | undefined) }),
-    [settings.appSettings]
-  );
+  const appSettings: Settings = useMemo(() => {
+    const merged = { ...DEFAULTS, ...(settings.appSettings as Partial<Settings> | undefined) };
+    // An account can still have an animation saved that has since been removed.
+    return COMPLETION_ANIMATIONS.some((a) => a.id === merged.completionAnimation)
+      ? merged
+      : { ...merged, completionAnimation: DEFAULT_COMPLETION_ANIMATION };
+  }, [settings.appSettings]);
 
   // Sync accent classes to DOM
   useEffect(() => {

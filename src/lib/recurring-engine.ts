@@ -31,6 +31,14 @@ export function parseLocalDateString(str: string): Date {
   return new Date(y, m - 1, d);
 }
 
+// A habit check can be for a past day; date its task's completion to that
+// day (local noon, so it stays on that calendar day in any timezone).
+function habitDayAsIso(dateStr: string): string {
+  const day = parseLocalDateString(dateStr);
+  day.setHours(12, 0, 0, 0);
+  return day.toISOString();
+}
+
 function addDays(date: Date, days: number): Date {
   const d = new Date(date);
   d.setDate(d.getDate() + days);
@@ -221,6 +229,7 @@ export function syncHabitCompletionToTasks(
         priority: "low",
         quadrant: config.quadrant,
         createdAt: new Date().toISOString(),
+        completedAt: habitDayAsIso(dateStr),
         recurringConfigId: config.id,
         recurringDate: dateStr,
       };
@@ -242,6 +251,7 @@ export function syncHabitCompletionToTasks(
     ...task,
     completed: checked,
     status: (checked ? "done" : "pending") as Task["status"],
+    completedAt: checked ? habitDayAsIso(dateStr) : undefined,
   };
 
   const updatedList = [...list];

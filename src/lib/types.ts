@@ -19,6 +19,7 @@ export interface Task {
   dueDate?: string; // ISO
   priority: Priority;
   createdAt: string; // ISO
+  completedAt?: string; // ISO, when it was last marked done
   recurringConfigId?: string;
   recurringDate?: string; // YYYY-MM-DD
 }

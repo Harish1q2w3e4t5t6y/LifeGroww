@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { X, Pencil, Zap, Clock, Flag } from "lucide-react";
+import { X, Pencil, Zap, Clock, Flag, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { Task, TaskStatus, Priority } from "@/lib/types";
 import { playCompleteSound } from "@/lib/sound";
 import { useAppSettings } from "@/hooks/useAppSettings";
+import { useTouchLayout } from "@/hooks/use-mobile";
 import { fireTaskCompleteEffect } from "@/lib/taskCompleteEffectBus";
 
 const NEXT_PRIORITY: Record<Priority, Priority> = {
@@ -102,12 +102,14 @@ export function TaskCard({
   onSetPriority,
   dragging,
 }: Props) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
     useSortable({ id: task.id, disabled: false });
+  const touchLayout = useTouchLayout();
 
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(task.title);
   const savedRef = useRef(false);
+  const titleInputRef = useRef<HTMLTextAreaElement | null>(null);
   const [dateOpen, setDateOpen] = useState(false);
   const [draftDate, setDraftDate] = useState<string>(isoToLocalInput(task.dueDate));
 
@@ -204,6 +206,19 @@ export function TaskCard({
     setDraftDate(isoToLocalInput(task.dueDate));
   }, [task.dueDate]);
 
+  // The edit box grows with the text so the whole title stays readable.
+  useLayoutEffect(() => {
+    const el = titleInputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [editing, value]);
+
+  const startEditing = () => {
+    setValue(task.title);
+    setEditing(true);
+  };
+
   const save = () => {
     if (savedRef.current) return;
     savedRef.current = true;
@@ -242,21 +257,22 @@ export function TaskCard({
         ]
           .filter(Boolean)
           .join(", "),
-        maxHeight: leaving ? "0px" : "80px",
+        maxHeight: leaving ? "0px" : "600px",
         overflow: "hidden",
         ...(leaving ? { marginTop: 0, paddingTop: 0, paddingBottom: 0, opacity: 0 } : {}),
       }}
-      {...(editing ? {} : attributes)}
-      {...(editing ? {} : listeners)}
+      {...(editing || touchLayout ? {} : attributes)}
+      {...(editing || touchLayout ? {} : listeners)}
       className={cn(
-        "group relative isolate rounded-md px-2 py-1.5 shadow-sm border",
+        "group relative isolate rounded-lg sm:rounded-md px-0.5 py-1.5 sm:px-2 shadow-sm border",
         task.completed
           ? "bg-zinc-100 border-zinc-200 text-zinc-600 dark:bg-zinc-950/60 dark:border-zinc-900 dark:text-white"
           : isOverdue
           ? "bg-red-50 border-red-200 text-card-foreground dark:bg-red-950/40 dark:border-red-900/60"
           : cn("text-card-foreground", PRIORITY_BG[baseColorPriority]),
-        !editing && "cursor-grab active:cursor-grabbing",
-        "touch-none transition-all hover:shadow-md hover:-translate-y-px animate-[task-row-in_0.25s_ease-out]",
+        !editing && !touchLayout && "cursor-grab active:cursor-grabbing",
+        !touchLayout && "touch-none",
+        "transition-all sm:hover:shadow-md sm:hover:-translate-y-px animate-[task-row-in_0.25s_ease-out]",
         (isDragging || dragging) && "opacity-50",
         task.completed && "opacity-60",
         leaving && "scale-95"
@@ -273,16 +289,32 @@ export function TaskCard({
         />
       )}
       <div className="relative z-10 flex flex-wrap items-center gap-1.5 w-full">
+      {touchLayout && !editing && (
+        <button
+          ref={setActivatorNodeRef}
+          type="button"
+          {...attributes}
+          {...listeners}
+          onClick={(e) => e.stopPropagation()}
+          className="self-stretch -my-1.5 grid place-items-center shrink-0 touch-none select-none cursor-grab active:cursor-grabbing text-muted-foreground"
+          aria-label="Drag to move task"
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+      )}
       <Checkbox
         checked={task.completed}
         onCheckedChange={handleToggle}
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
-        className="h-3.5 w-3.5"
+        className="h-4 w-4 sm:h-3.5 sm:w-3.5 relative after:absolute after:-inset-1.5 sm:after:hidden"
       />
       {editing ? (
-        <Input
+        <textarea
+          ref={titleInputRef}
           autoFocus
+          rows={1}
+          enterKeyHint="done"
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {
@@ -294,29 +326,28 @@ export function TaskCard({
               cancel();
             }
           }}
-          onFocus={() => {
+          onFocus={(e) => {
             savedRef.current = false;
+            const end = e.target.value.length;
+            e.target.setSelectionRange(end, end);
           }}
           onBlur={save}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
-          className="h-6 px-1 border-0 shadow-none focus-visible:ring-0 text-[13px] flex-1"
+          className="flex-1 min-w-0 max-h-[40dvh] px-1 resize-none bg-transparent outline-none text-[13px] leading-snug sm:leading-tight"
         />
       ) : (
         <div className="flex-1 flex items-center gap-1.5 min-w-[90px]">
           <p
             className={cn(
-              // Smaller text on mobile so more of the title fits per line
-              // (cards are half-width there, in the 2x2 grid).
-              "text-[11px] sm:text-[13px] leading-tight min-w-0 flex-1 pr-0.5",
-              // Full title text on every breakpoint, wrapping up to ~2 lines
-              // with internal scroll for anything longer. The quadrant panel
-              // itself scrolls for overflow, so taller cards on mobile don't
-              // break the single-screen Matrix layout.
-              "whitespace-normal break-words max-h-[2.4em] overflow-y-auto",
+              "text-[13px] leading-snug sm:leading-tight min-w-0 flex-1 pr-0.5",
+              // Full title on phones; on larger screens it wraps up to ~2
+              // lines with internal scroll for anything longer.
+              "whitespace-normal break-words sm:max-h-[2.4em] sm:overflow-y-auto",
               task.completed && "line-through"
             )}
             title={task.title}
+            onClick={touchLayout ? startEditing : undefined}
           >
             {task.title}
           </p>
@@ -336,31 +367,35 @@ export function TaskCard({
         </div>
       )}
 
-      {/* Action icons wrap onto their own row as a group on narrow screens
-          instead of individually squeezing the title down to a few
-          characters per line. Hidden entirely on mobile — just the task
-          text + checkbox there, per request; still full on tablet/desktop. */}
-      <div className="hidden sm:flex items-center gap-0.5 ml-auto shrink-0">
-      {!editing && (
-        <button
+      {/* Always shown on tablet/desktop. In the half-width phone boxes the row is just handle,
+          checkbox and text; these appear under the text while it's being
+          edited. preventDefault keeps focus in the edit box when one is
+          tapped, so the edit doesn't close underneath it. */}
+      <div
+        onMouseDown={editing ? (e) => e.preventDefault() : undefined}
+        className={cn(
+          "items-center gap-0.5 ml-auto shrink-0",
+          editing ? "flex sm:hidden" : dateOpen ? "flex" : "hidden sm:flex"
+        )}
+      >
+      <button
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
             onSetPriority?.(task.id, NEXT_PRIORITY[task.priority]);
           }}
           className={cn(
-            "transition-opacity p-1 sm:p-0.5 shrink-0",
+            "transition-opacity p-2 sm:p-0.5 shrink-0",
             PRIORITY_ICON[task.priority],
             "opacity-100 hover:brightness-110"
           )}
           aria-label={`Priority: ${PRIORITY_LABEL[task.priority]} (click to change)`}
           title={`Priority: ${PRIORITY_LABEL[task.priority]} — click to cycle`}
         >
-          <Flag className="h-3.5 w-3.5" fill="currentColor" strokeWidth={1.5} />
-        </button>
-      )}
+          <Flag className="h-5 w-5 sm:h-3.5 sm:w-3.5" fill="currentColor" strokeWidth={1.5} />
+      </button>
 
-      {!editing && !task.completed && (
+      {!task.completed && (
         <button
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
@@ -371,7 +406,7 @@ export function TaskCard({
             );
           }}
           className={cn(
-            "transition-opacity p-1 sm:p-0.5 shrink-0",
+            "transition-opacity p-2 sm:p-0.5 shrink-0",
             task.status === "in_progress"
               ? "text-orange-500 opacity-100"
               : "opacity-100 sm:opacity-0 sm:group-hover:opacity-100 text-muted-foreground hover:text-orange-500"
@@ -387,18 +422,17 @@ export function TaskCard({
               : "Set to In Progress"
           }
         >
-          <Zap className="h-3.5 w-3.5" />
+          <Zap className="h-5 w-5 sm:h-3.5 sm:w-3.5" />
         </button>
       )}
 
-      {!editing && (
-        <Popover open={dateOpen} onOpenChange={setDateOpen}>
+      <Popover open={dateOpen} onOpenChange={setDateOpen}>
           <PopoverTrigger asChild>
             <button
               onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => e.stopPropagation()}
               className={cn(
-                "transition-opacity flex items-center gap-0.5 p-1 sm:p-0.5 shrink-0",
+                "transition-opacity flex items-center gap-0.5 p-2 sm:p-0.5 shrink-0",
                 task.dueDate
                   ? isOverdue
                     ? "opacity-100 text-red-600 dark:text-red-400"
@@ -408,7 +442,7 @@ export function TaskCard({
               aria-label={task.dueDate ? "Edit deadline" : "Set deadline"}
               title={task.dueDate ? `Deadline: ${new Date(task.dueDate).toLocaleString()}` : "Set deadline"}
             >
-              <Clock className="h-3.5 w-3.5" />
+              <Clock className="h-5 w-5 sm:h-3.5 sm:w-3.5" />
               {countdown && (
                 <span className="text-[9px] font-medium hidden sm:inline">
                   {countdown.text}
@@ -462,38 +496,34 @@ export function TaskCard({
               </div>
             </div>
           </PopoverContent>
-        </Popover>
-      )}
+      </Popover>
 
       {!editing && (
         <button
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
-            setValue(task.title);
-            setEditing(true);
+            startEditing();
           }}
-          className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity p-1 sm:p-0.5 shrink-0"
+          className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-opacity p-2 sm:p-0.5 shrink-0"
           aria-label="Edit"
           title="Edit"
         >
-          <Pencil className="h-3.5 w-3.5" />
+          <Pencil className="h-5 w-5 sm:h-3.5 sm:w-3.5" />
         </button>
       )}
-      {!editing && (
-        <button
+      <button
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation();
             handleDelete();
           }}
-          className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity p-1 sm:p-0.5 shrink-0"
+          className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity p-2 sm:p-0.5 shrink-0"
           aria-label="Delete"
           title="Delete"
         >
-          <X className="h-3.5 w-3.5" />
-        </button>
-      )}
+          <X className="h-5 w-5 sm:h-3.5 sm:w-3.5" />
+      </button>
       </div>
       </div>
     </div>

@@ -12,9 +12,10 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { Plus, Check, Moon, Sun, LayoutDashboard, LogOut, MoreHorizontal, Briefcase, Home, Layers, CalendarClock, Download, Flame, Users, Trash2, type LucideIcon } from "lucide-react";
+import { Plus, Check, Moon, Sun, LayoutDashboard, LogOut, MoreHorizontal, Briefcase, Home, Layers, CalendarClock, CalendarCheck, Download, Flame, Users, Trash2, type LucideIcon } from "lucide-react";
 import { Link } from "react-router-dom";
 import { RecurringTasksManagerDialog } from "@/components/RecurringTasksManagerDialog";
+import { TaskHistoryDialog } from "@/components/TaskHistoryDialog";
 import type { Habit } from "@/lib/types";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -113,9 +114,9 @@ function Quad({
     <div
       ref={setNodeRef}
       className={cn(
-        "relative flex flex-col h-full min-h-0 overflow-hidden p-4",
+        "relative flex flex-col h-full min-h-0 overflow-hidden p-2 sm:p-4",
         "rounded-xl border border-border/60 border-t-2 shadow-card",
-        "transition-[opacity,transform,box-shadow] duration-500 ease-out hover:-translate-y-0.5 hover:shadow-lg",
+        "transition-[opacity,transform,box-shadow] duration-500 ease-out sm:hover:-translate-y-0.5 sm:hover:shadow-lg",
         bgGradient[quadrant],
         borderTopColor[quadrant],
         isOver && cn("ring-2 ring-inset", ringColor[quadrant]),
@@ -123,11 +124,11 @@ function Quad({
       )}
       style={{ transitionDelay: mounted ? `${index * 90}ms` : "0ms" }}
     >
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center gap-2.5">
+      <div className="flex items-center sm:items-start justify-between mb-2 sm:mb-3">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
           <div
             className={cn(
-              "h-8 w-8 rounded-lg grid place-items-center shrink-0 text-white",
+              "h-7 w-7 sm:h-8 sm:w-8 rounded-lg grid place-items-center shrink-0 text-white",
               badgeColor[quadrant],
               quadrant === "q1" && "animate-[urgent-pulse_2.4s_ease-in-out_infinite]"
             )}
@@ -139,24 +140,24 @@ function Quad({
           </div>
           <div>
             <h2
-              className="text-xl md:text-2xl font-bold tracking-tight text-foreground"
+              className="text-base sm:text-xl md:text-2xl font-bold tracking-tight text-foreground truncate"
               style={{ textShadow: `0 0 24px hsl(var(--${quadrant}) / 0.35)` }}
             >
               {meta.title}
             </h2>
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{meta.subtitle}</p>
+            <p className="hidden sm:block text-[11px] uppercase tracking-wide text-muted-foreground">{meta.subtitle}</p>
           </div>
         </div>
         <button
           onClick={() => setAdding(true)}
-          className="h-7 w-7 grid place-items-center rounded-md bg-card/60 hover:bg-card border border-border/50 text-muted-foreground hover:text-foreground transition-colors"
+          className="h-8 w-8 sm:h-7 sm:w-7 shrink-0 grid place-items-center rounded-md bg-card/60 hover:bg-card border border-border/50 text-muted-foreground hover:text-foreground transition-colors"
           aria-label="Add task"
         >
           <Plus className="h-4 w-4" />
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-1.5 sm:pr-1">
         {adding && (
           <div className="flex items-center gap-1.5 bg-card rounded-md px-2 py-1.5 border border-primary/40 shadow-sm animate-[task-row-in_0.2s_ease-out]">
             <Input
@@ -172,12 +173,12 @@ function Quad({
               }}
               onBlur={submit}
               placeholder="Task name..."
-              className="h-6 px-1 border-0 shadow-none focus-visible:ring-0 text-[13px]"
+              className="h-8 sm:h-6 px-1 border-0 shadow-none focus-visible:ring-0 text-[13px]"
             />
             <button
               onMouseDown={(e) => e.preventDefault()}
               onClick={submit}
-              className="text-primary"
+              className="text-primary p-1 sm:p-0"
               aria-label="Confirm"
             >
               <Check className="h-3.5 w-3.5" />
@@ -200,7 +201,7 @@ function Quad({
           ))}
         </SortableContext>
         {tasks.length === 0 && !adding && (
-          <div className="h-full min-h-24 flex items-center justify-center">
+          <div className="h-full min-h-14 sm:min-h-24 flex items-center justify-center">
             <p className="text-xs text-muted-foreground/60 italic">Drop or add tasks here</p>
           </div>
         )}
@@ -226,6 +227,7 @@ const Index = () => {
 
   const { habits, tasks: syncTasks, settings: syncSettings } = useSync();
   const [managerOpen, setManagerOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const handleExport = () => {
     const data = {
@@ -306,7 +308,7 @@ const Index = () => {
             };
             setWorkspace(nextMap[workspace]);
           }}
-          className="flex items-center gap-2 text-foreground hover:text-primary transition-colors cursor-pointer select-none text-left"
+          className="flex items-center gap-2 mr-auto sm:mr-0 text-foreground hover:text-primary transition-colors cursor-pointer select-none text-left"
           title="Cycle through workspaces"
         >
           <div className="relative h-7 w-7 shrink-0">
@@ -316,9 +318,11 @@ const Index = () => {
             {workspace === "personal" ? "Personal" : workspace === "professional" ? "Professional" : "Both"}
           </span>
         </button>
-        <div className="flex flex-wrap items-center justify-end gap-1.5 sm:gap-2">
+        {/* `contents` on phones lets the status row below wrap to full width
+            under the title, workspace switcher and menu. */}
+        <div className="contents sm:flex sm:flex-wrap sm:items-center sm:justify-end sm:gap-2">
           {/* Live status: what's happening right now */}
-          <div className="flex items-center gap-1.5">
+          <div className="order-last sm:order-none w-full sm:w-auto flex items-center justify-between sm:justify-start gap-1.5">
             <SyncStatusIndicator />
             <PomodoroTimer />
           </div>
@@ -398,6 +402,15 @@ const Index = () => {
           </button>
 
           <button
+            onClick={() => setHistoryOpen(true)}
+            className="hidden sm:grid h-7 w-7 place-items-center rounded-md border border-border/40 text-muted-foreground hover:text-foreground hover:bg-card/70 hover:border-border/60 transition-colors shrink-0"
+            aria-label="Task History"
+            title="Task History"
+          >
+            <CalendarCheck className="h-3.5 w-3.5" />
+          </button>
+
+          <button
             onClick={handleExport}
             className="hidden sm:grid h-7 w-7 place-items-center rounded-md border border-border/40 text-muted-foreground hover:text-foreground hover:bg-card/70 hover:border-border/60 transition-colors shrink-0"
             title="Export All Data"
@@ -458,6 +471,13 @@ const Index = () => {
                     <CalendarClock className="h-3.5 w-3.5" />
                   </button>
                   <button
+                    onClick={() => setHistoryOpen(true)}
+                    className="flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-white/5 text-xs text-muted-foreground hover:text-white transition-colors w-full text-left"
+                  >
+                    <span>Task History</span>
+                    <CalendarCheck className="h-3.5 w-3.5" />
+                  </button>
+                  <button
                     onClick={handleExport}
                     className="flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-white/5 text-xs text-muted-foreground hover:text-white transition-colors w-full text-left"
                   >
@@ -496,7 +516,7 @@ const Index = () => {
 
       </header>
 
-      <main className="flex-1 relative z-10 overflow-hidden">
+      <main className="flex-1 min-h-0 relative z-10 overflow-hidden">
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
           <div className="grid grid-cols-2 grid-rows-2 gap-1.5 sm:gap-3 p-1.5 sm:p-3 h-full">
             <Quad quadrant="q1" index={0} mounted={mounted} tasks={byQuadrant.q1} onToggle={toggleTask} onDelete={removeTask} onRename={renameTask} onSetStatus={setTaskStatus} onSetDueDate={setTaskDueDate} onSetPriority={setTaskPriority} onAdd={handleAdd} activeId={activeId} />
@@ -522,6 +542,8 @@ const Index = () => {
         onOpenChange={setManagerOpen}
         habitsList={habitsList}
       />
+
+      <TaskHistoryDialog open={historyOpen} onOpenChange={setHistoryOpen} tasks={tasks} />
     </div>
   );
 };

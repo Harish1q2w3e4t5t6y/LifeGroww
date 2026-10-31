@@ -87,7 +87,12 @@ export function useTasks(workspace: WorkspaceId = "professional") {
     const nextTasks = targetList.map((t) => {
       if (t.id !== id) return t;
       const completed = !t.completed;
-      return { ...t, completed, status: completed ? "done" : "pending" };
+      return {
+        ...t,
+        completed,
+        status: completed ? "done" : "pending",
+        completedAt: completed ? new Date().toISOString() : undefined,
+      };
     });
     await updateTasks(targetWorkspace, nextTasks);
   }, [allTasks, workspace, updateTasks]);
@@ -100,7 +105,8 @@ export function useTasks(workspace: WorkspaceId = "professional") {
     const nextTasks = targetList.map((t) => {
       if (t.id !== id) return t;
       const completed = status === "done";
-      return { ...t, status, completed };
+      const completedAt = completed ? (t.completed ? t.completedAt : new Date().toISOString()) : undefined;
+      return { ...t, status, completed, completedAt };
     });
     await updateTasks(targetWorkspace, nextTasks);
   }, [allTasks, workspace, updateTasks]);
