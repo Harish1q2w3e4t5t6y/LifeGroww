@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { TaskCompleteEffectHost } from "@/components/TaskCompleteEffectHost";
+import { NotesBoard } from "@/components/NotesBoard";
 import Index from "./pages/Index.tsx";
 import Dashboard from "./pages/Dashboard.tsx";
 import Login from "./pages/Login.tsx";
@@ -23,6 +24,7 @@ const App = () => (
           <Sonner />
           <TaskCompleteEffectHost />
           <BrowserRouter>
+            <NotesBoard />
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route

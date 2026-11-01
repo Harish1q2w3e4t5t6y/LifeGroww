@@ -92,6 +92,9 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // This prevents any code path from reducing habit data back to zero unexpectedly.
   const lastKnownServerHabits = useRef<HabitsStore | null>(null);
 
+  const [reloadCount, setReloadCount] = useState(0);
+  const [localDay, setLocalDay] = useState("");
+
   // Refs to store the latest state, allowing callbacks to bypass dependency rebuild loops
   const tasksRef = useRef(tasks);
   const habitsRef = useRef(habits);
@@ -347,7 +350,7 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSettingsState({ appSettings: { accent: "blue", reportLayout: "compact", showCompleted: true }, workspace: "professional", theme: "dark" });
       setIsInitialized(true);
     }
-  }, [user?.id, authLoading]);
+  }, [user?.id, authLoading, reloadCount]);
 
   // Mutation Methods - Wait-for-Server confirmation before updating local state when online
   const updateTasks = useCallback(async (workspace: string, newTasks: Task[]) => {
@@ -627,15 +630,17 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Trigger scheduler on settings changes or init
   const lastConfigsHash = useRef("");
+  const lastScheduledDay = useRef("");
   useEffect(() => {
     if (!isInitialized) return;
     const configs = Array.isArray(settings.recurringConfigs) ? (settings.recurringConfigs as RecurringConfig[]) : [];
-    const hash = JSON.stringify(configs);
+    const todayStr = toLocalDateString(new Date());
+    lastScheduledDay.current = todayStr;
+    const hash = `${todayStr}|${JSON.stringify(configs)}`;
     if (hash === lastConfigsHash.current) return;
     lastConfigsHash.current = hash;
 
     if (configs.length === 0) return;
-    const todayStr = toLocalDateString(new Date());
     const { updatedTasks, generatedCount } = generateScheduledTasks(tasksRef.current, configs, todayStr);
 
     if (generatedCount > 0) {
@@ -644,7 +649,26 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
       saveStateToLocal("tasks", updatedTasks);
       setDirty("tasks", true);
     }
-  }, [isInitialized, settings.recurringConfigs]);
+  }, [isInitialized, settings.recurringConfigs, localDay]);
+
+  // A tab left open past midnight still needs that day's recurring tasks.
+  // Signed in, reload first: this tab's copy may be hours old, and scheduling
+  // on top of it would overwrite changes made on another device.
+  useEffect(() => {
+    const checkNewDay = () => {
+      const todayStr = toLocalDateString(new Date());
+      if (!isInitialized || todayStr === lastScheduledDay.current) return;
+      if (!user) setLocalDay(todayStr);
+      else if (isOnline) setReloadCount((count) => count + 1);
+    };
+
+    const timer = window.setInterval(checkNewDay, 60000);
+    document.addEventListener("visibilitychange", checkNewDay);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", checkNewDay);
+    };
+  }, [user, isOnline, isInitialized]);
 
   const forceSync = async () => {
     if (user && isOnline && !syncInProgress.current && isInitialized) {
