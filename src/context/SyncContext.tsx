@@ -92,6 +92,21 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // This prevents any code path from reducing habit data back to zero unexpectedly.
   const lastKnownServerHabits = useRef<HabitsStore | null>(null);
 
+  // Writes from this tab, tracked so a quiet reload (see refreshFromServer)
+  // never lands on top of an edit made here while it was in flight.
+  const writesInFlight = useRef(0);
+  const writeGeneration = useRef(0);
+  const beginWrite = () => {
+    writesInFlight.current += 1;
+    writeGeneration.current += 1;
+    let ended = false;
+    return () => {
+      if (ended) return;
+      ended = true;
+      writesInFlight.current -= 1;
+    };
+  };
+
   const [reloadCount, setReloadCount] = useState(0);
   const [localDay, setLocalDay] = useState("");
 
@@ -141,6 +156,7 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (keysToSync.length === 0) return;
     
     syncInProgress.current = true;
+    const endWrite = beginWrite();
     setSyncStatus("saving");
     setLastError(null);
 
@@ -172,6 +188,7 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLastError(errMsg || "Network or server failure");
     } finally {
       syncInProgress.current = false;
+      endWrite();
     }
   }, [isOnline]);
 
@@ -395,6 +412,7 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     // 2. If Online: Attempt server update FIRST. Wait for Supabase response before updating UI.
+    const endWrite = beginWrite();
     setSyncStatus("saving");
     setLastError(null);
     try {
@@ -429,6 +447,8 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.warn("[SyncEngine] Server tasks write failed:", errMsg);
       setSyncStatus("failed");
       setLastError(errMsg || "Write failed");
+    } finally {
+      endWrite();
     }
   }, [isOnline, user, isInitialized]);
 
@@ -541,6 +561,7 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
+    const endWrite = beginWrite();
     setSyncStatus("saving");
     setLastError(null);
     try {
@@ -576,6 +597,8 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSyncStatus("failed");
       habitsRef.current = oldHabits;
       setLastError(errMsg || "Write failed");
+    } finally {
+      endWrite();
     }
     };
 
@@ -598,6 +621,7 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     // 2. If Online: Attempt server update FIRST. Wait for Supabase response before updating UI.
+    const endWrite = beginWrite();
     setSyncStatus("saving");
     setLastError(null);
     try {
@@ -625,6 +649,8 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.warn("[SyncEngine] Server settings write failed:", errMsg);
       setSyncStatus("failed");
       setLastError(errMsg || "Write failed");
+    } finally {
+      endWrite();
     }
   }, [isOnline, user, isInitialized]);
 
@@ -669,6 +695,110 @@ export const SyncProvider: React.FC<{ children: React.ReactNode }> = ({ children
       document.removeEventListener("visibilitychange", checkNewDay);
     };
   }, [user, isOnline, isInitialized]);
+
+  // ── Changes made outside this tab ─────────────────────────────────────────
+  // ChatGPT (through the MCP server) or another device can change the row
+  // while this tab is open. Every write here saves the whole row from memory,
+  // so a stale copy would silently undo those changes. Reload quietly — no
+  // loading screen — whenever the tab comes back into view and whenever
+  // Supabase Realtime says the row changed, but only while this tab has
+  // nothing of its own unsaved or in flight.
+  const refreshInFlight = useRef(false);
+  const refreshQueued = useRef(false);
+  const lastFocusRefresh = useRef(0);
+
+  const canRefresh = useCallback(() => {
+    if (!user || !isOnline || !isInitialized || !isSupabaseConfigured) return false;
+    if (syncInProgress.current || writesInFlight.current > 0) return false;
+    return !Object.values(dirtyRef.current).some(Boolean);
+  }, [user, isOnline, isInitialized]);
+
+  const refreshFromServer = useCallback(async () => {
+    if (!canRefresh()) return;
+    if (refreshInFlight.current) {
+      refreshQueued.current = true;
+      return;
+    }
+    refreshInFlight.current = true;
+    const generationAtStart = writeGeneration.current;
+    try {
+      const { data, error } = await supabase
+        .from("user_data")
+        .select("tasks, habits, settings")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      if (error || !data) return;
+      // An edit made here while we were reading is newer than what we read.
+      if (generationAtStart !== writeGeneration.current || !canRefresh()) return;
+
+      const nextTasks = (data.tasks as Record<string, Task[]> | null) ?? { personal: [], professional: [] };
+      const nextHabits = (data.habits as HabitsStore | null) ?? { months: {}, theme: "dark" };
+      const nextSettings = (data.settings as Record<string, unknown> | null) ?? settingsRef.current;
+
+      tasksRef.current = nextTasks;
+      habitsRef.current = nextHabits;
+      settingsRef.current = nextSettings;
+      setTasksState(nextTasks);
+      saveStateToLocal("tasks", nextTasks);
+      setHabitsState(nextHabits);
+      saveStateToLocal("habits", nextHabits);
+      setSettingsState(nextSettings);
+      saveStateToLocal("settings", nextSettings);
+      if (data.habits) lastKnownServerHabits.current = data.habits as HabitsStore;
+
+      const now = new Date();
+      setLastSyncTime(now);
+      localStorage.setItem(KEYS.lastSync, now.toISOString());
+    } catch (err: unknown) {
+      // A failed background reload changes nothing; the next one will try again.
+      console.warn("[SyncEngine] Background reload failed:", getErrorMessage(err));
+    } finally {
+      refreshInFlight.current = false;
+      if (refreshQueued.current) {
+        refreshQueued.current = false;
+        void refreshFromServerRef.current();
+      }
+    }
+  }, [canRefresh, user]);
+
+  const refreshFromServerRef = useRef(refreshFromServer);
+  useEffect(() => { refreshFromServerRef.current = refreshFromServer; }, [refreshFromServer]);
+
+  // Tab shown again / window focused (both usually fire together: reload once).
+  useEffect(() => {
+    const onShow = () => {
+      if (document.visibilityState === "hidden") return;
+      const now = Date.now();
+      if (now - lastFocusRefresh.current < 2000) return;
+      lastFocusRefresh.current = now;
+      void refreshFromServerRef.current();
+    };
+    document.addEventListener("visibilitychange", onShow);
+    window.addEventListener("focus", onShow);
+    return () => {
+      document.removeEventListener("visibilitychange", onShow);
+      window.removeEventListener("focus", onShow);
+    };
+  }, []);
+
+  // Live updates while the tab stays open. Needs `user_data` in the
+  // supabase_realtime publication (see docs/mcp-chatgpt-setup.md); without
+  // it this just never fires and the reload-on-focus above still applies.
+  useEffect(() => {
+    const userId = user?.id;
+    if (!userId || !isSupabaseConfigured || typeof supabase.channel !== "function") return;
+    const channel = supabase
+      .channel(`user_data:${userId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "user_data", filter: `user_id=eq.${userId}` },
+        () => void refreshFromServerRef.current(),
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
 
   const forceSync = async () => {
     if (user && isOnline && !syncInProgress.current && isInitialized) {

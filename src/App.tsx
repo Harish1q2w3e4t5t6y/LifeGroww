@@ -8,6 +8,7 @@ import { NotesBoard } from "@/components/NotesBoard";
 import Index from "./pages/Index.tsx";
 import Dashboard from "./pages/Dashboard.tsx";
 import Login from "./pages/Login.tsx";
+import OAuthConsent from "./pages/OAuthConsent.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import { AuthProvider } from "@/context/AuthContext";
 import { SyncProvider } from "@/context/SyncContext";
@@ -27,6 +28,7 @@ const App = () => (
             <NotesBoard />
             <Routes>
               <Route path="/login" element={<Login />} />
+              <Route path="/oauth/consent" element={<OAuthConsent />} />
               <Route
                 path="/"
                 element={

@@ -1,6 +1,7 @@
 import React from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import { getPostLoginRedirect } from "@/lib/postLoginRedirect";
 
 export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({
   children,
@@ -28,6 +29,14 @@ export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({
 
   if (isConfigured && !user) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Signed in on the way to somewhere else (e.g. approving ChatGPT access):
+  // finish that first. Every sign-in path ends up on "/", so this one check
+  // covers email, Google and password-reset sign-ins alike.
+  const pendingRedirect = user ? getPostLoginRedirect() : null;
+  if (pendingRedirect) {
+    return <Navigate to={pendingRedirect} replace />;
   }
 
   return <>{children}</>;
