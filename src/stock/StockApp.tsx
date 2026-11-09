@@ -1,4 +1,4 @@
-// Home Stock — experimental family stock tracker, served at /stock.
+// Arumugam Stock — experimental family stock tracker, served at /stock.
 // No login. Fully separate from Lifegrow: own table and photo bucket, own
 // home-screen icon. To remove it, see src/stock/REMOVE.md.
 
@@ -10,7 +10,7 @@ import { StockHome } from "./components/StockHome";
 // Give /stock its own name and icon when added to a phone's home screen.
 function useHomeScreenIdentity() {
   useEffect(() => {
-    document.title = "Home Stock";
+    document.title = "Arumugam Stock";
     const tags: HTMLElement[] = [];
     const add = (tag: string, attrs: Record<string, string>) => {
       const el = document.createElement(tag);
@@ -20,7 +20,7 @@ function useHomeScreenIdentity() {
     };
     add("link", { rel: "manifest", href: "/stock/manifest.webmanifest" });
     add("link", { rel: "apple-touch-icon", href: "/stock/icon-180.png" });
-    add("meta", { name: "apple-mobile-web-app-title", content: "Home Stock" });
+    add("meta", { name: "apple-mobile-web-app-title", content: "Arumugam" });
     add("meta", { name: "apple-mobile-web-app-capable", content: "yes" });
     add("meta", { name: "mobile-web-app-capable", content: "yes" });
     add("meta", { name: "theme-color", content: "#0f766e" });

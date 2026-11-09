@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fitWithin, newId, stockCsv, stockLevel, stockStats, visibleItems, type StockItem } from "./lib/logic";
+import { badSizeRows, fitWithin, itemLevel, itemLines, itemTotal, newId, stockCsv, stockLevel, stockStats, visibleItems, type StockItem } from "./lib/logic";
 
 const item = (name: string, quantity: number, extra: Partial<StockItem> = {}): StockItem => ({
   id: name,
@@ -11,7 +11,7 @@ const item = (name: string, quantity: number, extra: Partial<StockItem> = {}): S
   ...extra,
 });
 
-describe("Home Stock logic", () => {
+describe("Arumugam Stock logic", () => {
   it("classifies stock levels", () => {
     expect([0, 1, 2, 3].map(stockLevel)).toEqual(["out", "low", "low", "ok"]);
   });
@@ -34,9 +34,9 @@ describe("Home Stock logic", () => {
       [item('Shirt "blue", M', 3, { price: "450.00", size: "M" }), item("=cmd", 0)],
       (i) => (i.name === "=cmd" ? "" : "Shirt › Formal"),
     );
-    expect(csv.startsWith("\uFEFFType,Item,Quantity,Status,Size,Colour,Price,Notes,Last changed\r\n")).toBe(true);
-    expect(csv).toContain('Shirt › Formal,"Shirt ""blue"", M",3,In stock,M,,450,,2026-11-09');
-    expect(csv).toContain(",'=cmd,0,Out of stock,,,,,2026-11-09");
+    expect(csv.startsWith("\uFEFFType,Item,Size,Quantity,Status,Colour,Price,Notes,Last changed\r\n")).toBe(true);
+    expect(csv).toContain('Shirt › Formal,"Shirt ""blue"", M",M,3,In stock,,450,,2026-11-09');
+    expect(csv).toContain(",'=cmd,,0,Out of stock,,,,2026-11-09");
   });
 
   it("shrinks photos keeping their shape and never enlarges", () => {
@@ -74,7 +74,7 @@ describe("which app opens", () => {
     expect(pickApp(visit({ remembered: "stock", chosenThisVisit: "lifegrow" }))).toBe("lifegrow");
   });
 
-  it("always opens /stock as Home Stock", () => {
+  it("always opens /stock as Arumugam Stock", () => {
     expect(pickApp(visit({ pathname: "/stock", isPhone: false, remembered: "lifegrow" }))).toBe("stock");
   });
 
@@ -160,5 +160,68 @@ describe("types tree", () => {
     expect(nameTaken(idx, "shirt", " formal ")).toBe(true);
     expect(nameTaken(idx, "formal", "Formal")).toBe(false);
     expect(nameTaken(idx, "shirt", "Formal", "formal")).toBe(false);
+  });
+});
+
+describe("sizes inside a product", () => {
+  const sigma = item("Sigma shirt", 999, {
+    variants: [
+      { id: "v3", label: "S", quantity: 4, sort: 2 },
+      { id: "v1", label: "L", quantity: 12, sort: 0 },
+      { id: "v4", label: "XL", quantity: 0, sort: 3 },
+      { id: "v2", label: "M", quantity: 400, sort: 1 },
+    ],
+  });
+
+  it("totals the sizes (ignoring the product's own count) and keeps the typed order", () => {
+    expect(itemTotal(sigma)).toBe(416);
+    expect(itemLines(sigma).map((l) => `${l.label}:${l.quantity}`)).toEqual(["L:12", "M:400", "S:4", "XL:0"]);
+    expect(itemLines(item("Belt", 3))).toEqual([{ label: null, quantity: 3 }]);
+  });
+
+  it("flags a product when any size is out or low", () => {
+    expect(itemLevel(sigma)).toBe("out");
+    expect(itemLevel(item("A", 5, { variants: [{ id: "x", label: "M", quantity: 2, sort: 0 }] }))).toBe("low");
+    expect(itemLevel(item("A", 0, { variants: [{ id: "x", label: "M", quantity: 9, sort: 0 }] }))).toBe("ok");
+  });
+
+  it("counts each size separately for low / out on the dashboard", () => {
+    expect(stockStats([sigma, item("Belt", 1)])).toEqual({ kinds: 2, pieces: 417, low: 1, out: 1 });
+  });
+
+  it("filters and searches by size", () => {
+    const belt = item("Belt", 9);
+    expect(visibleItems([sigma, belt], "", "out").map((i) => i.name)).toEqual(["Sigma shirt"]);
+    expect(visibleItems([sigma, belt], "xl", "all").map((i) => i.name)).toEqual(["Sigma shirt"]);
+  });
+
+  it("exports one row per size", () => {
+    const csv = stockCsv([sigma], () => "T-shirt");
+    expect(csv).toContain("T-shirt,Sigma shirt,L,12,In stock");
+    expect(csv).toContain("T-shirt,Sigma shirt,XL,0,Out of stock");
+    expect(csv.trim().split("\r\n")).toHaveLength(5);
+  });
+
+  it("rolls sizes up into type totals", () => {
+    const idx = indexCategories([{ id: "t", name: "T-shirt", parent_id: null }]);
+    expect(branchSummary(idx, "t", [{ ...sigma, category_id: "t", photoUrl: "p" }])).toMatchObject({ pieces: 416, kinds: 1, low: 0, out: 1 });
+  });
+});
+
+describe("size names", () => {
+  it("flags empty and repeated size names", () => {
+    expect([...badSizeRows([{ label: "L" }, { label: " l " }, { label: "" }, { label: "M" }])].sort()).toEqual([0, 1, 2]);
+    expect(badSizeRows([{ label: "S" }, { label: "M" }]).size).toBe(0);
+  });
+});
+
+import { clampZoom, MAX_ZOOM } from "./lib/logic";
+
+describe("photo zoom", () => {
+  it("never zooms out past the whole photo or in past the limit", () => {
+    expect(clampZoom(0.3)).toBe(1);
+    expect(clampZoom(2.345)).toBe(2.35);
+    expect(clampZoom(99)).toBe(MAX_ZOOM);
+    expect(clampZoom(NaN)).toBe(1);
   });
 });

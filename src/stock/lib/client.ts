@@ -1,4 +1,4 @@
-// Home Stock has no login: it talks to Supabase as a public visitor. It uses
+// Arumugam Stock has no login: it talks to Supabase as a public visitor. It uses
 // its own client with no saved session, so a Lifegrow login on the same phone
 // is never touched or sent along.
 import { createClient } from "@supabase/supabase-js";

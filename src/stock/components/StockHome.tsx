@@ -6,6 +6,7 @@ import { ArrowLeftRight, Download, FolderTree, LayoutGrid, MoreVertical, Plus, P
 import {
   addCategory,
   adjustQuantity,
+  adjustSize,
   DEFAULT_SETTINGS,
   deleteCategory,
   listCategories,
@@ -17,13 +18,15 @@ import {
   type StockSettings,
 } from "../lib/api";
 import { switchApp } from "../appChoice";
-import { stockCsv, stockStats, visibleItems, type StockFilter } from "../lib/logic";
+import { stockCsv, stockStats, visibleItems, type StockFilter, type StockVariant } from "../lib/logic";
 import { categoryPathLabel, indexCategories, type Category } from "../lib/tree";
 import { ByTypeView } from "./ByTypeView";
 import { ItemCard } from "./ItemCard";
 import { ItemSheet } from "./ItemSheet";
 import { PrintList } from "./PrintList";
 import { SettingsSheet } from "./SettingsSheet";
+import { SizesSheet } from "./SizesSheet";
+import { PhotoViewer } from "./PhotoViewer";
 import { TypeSheet } from "./TypeSheet";
 
 type SheetState = { mode: "add" } | { mode: "edit"; item: StockItemWithPhoto } | null;
@@ -54,6 +57,9 @@ export function StockHome() {
   const [typeAt, setTypeAt] = useState<string | null>(null);
   const [typeSheet, setTypeSheet] = useState<TypeSheetState>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [sizesFor, setSizesFor] = useState<string | null>(null); // product whose size table is open
+  const [photo, setPhoto] = useState<{ src: string; title: string } | null>(null);
+  const viewPhoto = (src: string, title: string) => setPhoto({ src, title });
   // Taps still waiting for the server, per item: ignore server counts until
   // the last tap's answer arrives, so fast tapping never jumps backwards.
   const pendingTaps = useRef(new Map<string, number>());
@@ -65,9 +71,17 @@ export function StockHome() {
       setSettings(prefs);
       setItems((prev) => {
         if (!prev) return fresh;
-        // Keep the on-screen count for items with taps still in flight.
+        // Keep the on-screen counts for products / sizes with taps still in flight.
         const prevById = new Map(prev.map((i) => [i.id, i]));
-        return fresh.map((i) => (pendingTaps.current.get(i.id) ? { ...i, quantity: prevById.get(i.id)?.quantity ?? i.quantity } : i));
+        return fresh.map((i) => {
+          const old = prevById.get(i.id);
+          if (!old) return i;
+          const quantity = pendingTaps.current.get(i.id) ? old.quantity : i.quantity;
+          const variants = i.variants?.map((v) =>
+            pendingTaps.current.get(v.id) ? { ...v, quantity: old.variants?.find((o) => o.id === v.id)?.quantity ?? v.quantity } : v,
+          );
+          return { ...i, quantity, variants };
+        });
       });
       setLoadError(null);
     } catch (err) {
@@ -87,30 +101,56 @@ export function StockHome() {
     };
   }, [load]);
 
-  const tap = async (item: StockItemWithPhoto, delta: number) => {
-    if (delta < 0 && item.quantity <= 0) return;
-    setItems((prev) => prev?.map((i) => (i.id === item.id ? { ...i, quantity: Math.max(0, i.quantity + delta) } : i)) ?? prev);
-    pendingTaps.current.set(item.id, (pendingTaps.current.get(item.id) ?? 0) + 1);
+  // Optimistic + / −: show the change at once, then settle on the server's count
+  // when the last tap for that product/size has come back.
+  const sendTap = async (key: string, apply: (n: number) => void, call: () => Promise<number>) => {
+    pendingTaps.current.set(key, (pendingTaps.current.get(key) ?? 0) + 1);
     try {
-      const serverQty = await adjustQuantity(item.id, delta);
-      const left = (pendingTaps.current.get(item.id) ?? 1) - 1;
+      const serverQty = await call();
+      const left = (pendingTaps.current.get(key) ?? 1) - 1;
       if (left <= 0) {
-        pendingTaps.current.delete(item.id);
-        setItems((prev) => prev?.map((i) => (i.id === item.id ? { ...i, quantity: serverQty } : i)) ?? prev);
+        pendingTaps.current.delete(key);
+        apply(serverQty);
       } else {
-        pendingTaps.current.set(item.id, left);
+        pendingTaps.current.set(key, left);
       }
     } catch (err) {
-      pendingTaps.current.delete(item.id);
+      pendingTaps.current.delete(key);
       toast.error(err instanceof Error ? err.message : "Could not save. Check the internet.");
       void load();
     }
+  };
+
+  const setItemQty = (id: string, q: (old: number) => number) =>
+    setItems((prev) => prev?.map((i) => (i.id === id ? { ...i, quantity: q(i.quantity) } : i)) ?? prev);
+  const setSizeQty = (itemId: string, sizeId: string, q: (old: number) => number) =>
+    setItems(
+      (prev) =>
+        prev?.map((i) =>
+          i.id === itemId ? { ...i, variants: i.variants?.map((v) => (v.id === sizeId ? { ...v, quantity: q(v.quantity) } : v)) } : i,
+        ) ?? prev,
+    );
+
+  const tap = (item: StockItemWithPhoto, delta: number) => {
+    if (delta < 0 && item.quantity <= 0) return;
+    setItemQty(item.id, (n) => Math.max(0, n + delta));
+    void sendTap(item.id, (n) => setItemQty(item.id, () => n), () => adjustQuantity(item.id, delta));
+  };
+
+  const tapSize = (item: StockItemWithPhoto, size: StockVariant, delta: number) => {
+    if (delta < 0 && size.quantity <= 0) return;
+    setSizeQty(item.id, size.id, (n) => Math.max(0, n + delta));
+    void sendTap(size.id, (n) => setSizeQty(item.id, size.id, () => n), () => adjustSize(size.id, delta));
   };
 
   const idx = useMemo(() => indexCategories(categories), [categories]);
   const typeLabel = useCallback((item: StockItemWithPhoto) => categoryPathLabel(idx, item.category_id), [idx]);
   const stats = useMemo(() => stockStats(items ?? []), [items]);
   const shown = useMemo(() => visibleItems(items ?? [], search, filter, typeLabel), [items, search, filter, typeLabel]);
+  // Moving between the tree and a type's page: start at the top of the page.
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+  }, [typeAt]);
   // A type deleted on another phone: step back to the top.
   useEffect(() => {
     if (typeAt && !idx.byId.has(typeAt)) setTypeAt(null);
@@ -132,6 +172,8 @@ export function StockHome() {
     }
   };
   const openItem = (item: StockItemWithPhoto) => setSheet({ mode: "edit", item });
+  const openSizes = (item: StockItemWithPhoto) => setSizesFor(item.id);
+  const sizesItem = sizesFor ? items?.find((i) => i.id === sizesFor) ?? null : null;
 
   const tiles: Array<{ key: StockFilter; label: string; value: number; tone: string }> = [
     { key: "all", label: "Items", value: stats.kinds, tone: "bg-white text-stone-900" },
@@ -145,7 +187,7 @@ export function StockHome() {
       <div className="mx-auto max-w-3xl px-4 pb-32 pt-4 print:hidden">
         {/* Header */}
         <header className="mb-4 flex items-center justify-between">
-          <h1 className="text-2xl font-extrabold tracking-tight text-teal-800">Home Stock</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight text-teal-800">Arumugam Stock</h1>
           <div className="relative flex items-center gap-1">
             <button aria-label="Refresh" onClick={() => void load()} className="rounded-full p-3 text-stone-500 hover:bg-stone-200">
               <RefreshCw className="h-6 w-6" />
@@ -295,7 +337,7 @@ export function StockHome() {
         {tab === "all" && (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {shown.map((item) => (
-              <ItemCard key={item.id} item={item} typeLabel={typeLabel(item)} onOpen={openItem} onTap={(it, d) => void tap(it, d)} />
+              <ItemCard key={item.id} item={item} typeLabel={typeLabel(item)} onOpen={openItem} onOpenSizes={openSizes} onTap={tap} onViewPhoto={viewPhoto} />
             ))}
           </div>
         )}
@@ -307,7 +349,9 @@ export function StockHome() {
             at={typeAt}
             setAt={setTypeAt}
             onOpenItem={openItem}
-            onTap={(it, d) => void tap(it, d)}
+            onOpenSizes={openSizes}
+            onViewPhoto={viewPhoto}
+            onTap={tap}
             onNewType={(parentId) => setTypeSheet({ category: null, parentId })}
             onEditType={(category) => setTypeSheet({ category, parentId: category.parent_id })}
           />
@@ -329,6 +373,7 @@ export function StockHome() {
           typeRequired={settings.typeRequired}
           defaultCategoryId={tab === "types" ? typeAt : null}
           onCreateCategory={createCategory}
+          onViewPhoto={viewPhoto}
           onClose={() => setSheet(null)}
           onSaved={() => {
             setSheet(null);
@@ -356,6 +401,22 @@ export function StockHome() {
           onClose={() => setTypeSheet(null)}
         />
       )}
+
+      {sizesItem && (
+        <SizesSheet
+          item={sizesItem}
+          typeLabel={typeLabel(sizesItem)}
+          onTapSize={tapSize}
+          onViewPhoto={viewPhoto}
+          onEdit={(it) => {
+            setSizesFor(null);
+            openItem(it);
+          }}
+          onClose={() => setSizesFor(null)}
+        />
+      )}
+
+      {photo && <PhotoViewer src={photo.src} title={photo.title} onClose={() => setPhoto(null)} />}
 
       {settingsOpen && <SettingsSheet settings={settings} onChange={changeSetting} onClose={() => setSettingsOpen(false)} />}
 

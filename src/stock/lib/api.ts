@@ -1,6 +1,6 @@
-// Home Stock — Supabase reads/writes. Tables and bucket: src/stock/supabase-setup.sql.
+// Arumugam Stock — Supabase reads/writes. Tables and bucket: src/stock/supabase-setup.sql.
 import { stockSupabase as db } from "./client";
-import { fitWithin, newId, type StockItem } from "./logic";
+import { fitWithin, newId, type StockItem, type StockVariant } from "./logic";
 import type { Category } from "./tree";
 
 const BUCKET = "stock-photos";
@@ -41,7 +41,9 @@ async function removePhoto(path: string) {
 export async function listItems(): Promise<StockItemWithPhoto[]> {
   const { data, error } = await db
     .from("stock_items")
-    .select("id, name, quantity, photo_path, created_at, updated_at, category_id, price, size, color, notes");
+    .select(
+      "id, name, quantity, photo_path, created_at, updated_at, category_id, price, size, color, notes, variants:stock_variants(id, label, quantity, sort)",
+    );
   if (error) throw new Error(error.message);
   // Public bucket: photo links are built locally, no extra request.
   return ((data ?? []) as StockItem[]).map((i) => ({
@@ -70,23 +72,74 @@ function cleanDetails(d: ItemDetails): Record<string, unknown> {
   return out;
 }
 
-export async function addItem(input: { name: string; quantity: number; photo: File } & ItemDetails): Promise<void> {
+/** A size row as edited on screen: `id` is missing for sizes not saved yet. */
+export interface SizeDraft {
+  id?: string;
+  label: string;
+  quantity: number;
+}
+
+export async function addItem(
+  input: { name: string; quantity: number; photo: File; sizes?: SizeDraft[] } & ItemDetails,
+): Promise<void> {
   const photo_path = await uploadPhoto(input.photo);
-  const { error } = await db.from("stock_items").insert({
-    name: input.name.trim(),
-    quantity: Math.max(0, Math.floor(input.quantity)),
-    photo_path,
-    ...cleanDetails(input),
-  });
+  const { sizes, ...rest } = input;
+  const { data, error } = await db
+    .from("stock_items")
+    .insert({
+      name: rest.name.trim(),
+      quantity: Math.max(0, Math.floor(rest.quantity)),
+      photo_path,
+      ...cleanDetails(rest),
+    })
+    .select("id")
+    .single();
   if (error) {
     await removePhoto(photo_path);
     throw new Error(error.message);
   }
+  if (sizes?.length) await saveSizes((data as { id: string }).id, [], sizes);
+}
+
+/** Bring a product's saved sizes in line with what's on screen (add, change, remove). */
+export async function saveSizes(itemId: string, before: StockVariant[], after: SizeDraft[]): Promise<void> {
+  const keep = new Set(after.filter((d) => d.id).map((d) => d.id));
+  const removed = before.filter((v) => !keep.has(v.id)).map((v) => v.id);
+  if (removed.length) {
+    const { error } = await db.from("stock_variants").delete().in("id", removed);
+    if (error) throw new Error(error.message);
+  }
+  const rows = after.map((d, sort) => ({
+    ...(d.id ? { id: d.id } : {}),
+    item_id: itemId,
+    label: d.label.trim(),
+    quantity: Math.max(0, Math.floor(d.quantity)),
+    sort,
+  }));
+  const existing = rows.filter((r) => "id" in r);
+  const fresh = rows.filter((r) => !("id" in r));
+  if (existing.length) {
+    const { error } = await db.from("stock_variants").upsert(existing, { onConflict: "id" });
+    if (error) throw new Error(error.code === "23505" ? "Two sizes have the same name." : error.message);
+  }
+  if (fresh.length) {
+    const { error } = await db.from("stock_variants").insert(fresh);
+    if (error) throw new Error(error.code === "23505" ? "Two sizes have the same name." : error.message);
+  }
+}
+
+/** + / − on one size: returns the new count as the server sees it. */
+export async function adjustSize(variantId: string, delta: number): Promise<number> {
+  const { data, error } = await db.rpc("stock_adjust_variant", { variant_id: variantId, delta });
+  if (error) throw new Error(error.message);
+  const row = (Array.isArray(data) ? data[0] : data) as StockVariant | null;
+  if (!row) throw new Error("This size was removed on another phone.");
+  return row.quantity;
 }
 
 export async function updateItem(
   item: StockItem,
-  changes: { name?: string; quantity?: number; photo?: File | null } & ItemDetails,
+  changes: { name?: string; quantity?: number; photo?: File | null; sizes?: SizeDraft[] } & ItemDetails,
 ): Promise<void> {
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString(), ...cleanDetails(changes) };
   if (changes.name !== undefined) patch.name = changes.name.trim();
@@ -100,6 +153,7 @@ export async function updateItem(
     throw new Error(error.message);
   }
   if (newPhoto) await removePhoto(item.photo_path);
+  if (changes.sizes) await saveSizes(item.id, item.variants ?? [], changes.sizes);
 }
 
 /** + / − : returns the new quantity as the server sees it. */

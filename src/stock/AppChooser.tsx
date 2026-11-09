@@ -1,5 +1,5 @@
 // Phone-only "which app?" screen, shown before any Lifegrow login.
-// Part of the Home Stock experiment; see REMOVE.md.
+// Part of the Arumugam Stock experiment; see REMOVE.md.
 import { useState } from "react";
 import { PackageOpen } from "lucide-react";
 import { chooseApp } from "./appChoice";
@@ -20,7 +20,7 @@ export default function AppChooser() {
             <PackageOpen className="h-11 w-11" />
           </span>
           <span>
-            <span className="block text-2xl font-extrabold">Home Stock</span>
+            <span className="block text-2xl font-extrabold">Arumugam Stock</span>
             <span className="text-stone-500">What we have at home</span>
           </span>
         </button>

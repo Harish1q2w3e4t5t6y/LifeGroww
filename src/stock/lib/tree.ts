@@ -1,6 +1,6 @@
-// Home Stock — the types tree (Shirt → Formal → Full sleeve …). Pure helpers,
+// Arumugam Stock — the types tree (Shirt → Formal → Full sleeve …). Pure helpers,
 // unit-tested in src/stock/stock.test.ts.
-import { stockLevel, type StockItem } from "./logic";
+import { itemLines, itemTotal, stockLevel, type StockItem } from "./logic";
 
 export interface Category {
   id: string;
@@ -88,11 +88,13 @@ export function branchSummary<T extends StockItem & { photoUrl?: string | null }
   for (const it of items) {
     if (!it.category_id || !ids.has(it.category_id)) continue;
     summary.kinds += 1;
-    summary.pieces += Math.max(0, it.quantity);
-    const level = stockLevel(it.quantity);
-    if (level === "low") summary.low += 1;
-    if (level === "out") summary.out += 1;
-    if (!summary.coverPhotoUrl && it.photoUrl && level !== "out") summary.coverPhotoUrl = it.photoUrl;
+    summary.pieces += itemTotal(it);
+    for (const line of itemLines(it)) {
+      const level = stockLevel(line.quantity);
+      if (level === "low") summary.low += 1;
+      if (level === "out") summary.out += 1;
+    }
+    if (!summary.coverPhotoUrl && it.photoUrl && itemTotal(it) > 0) summary.coverPhotoUrl = it.photoUrl;
   }
   if (!summary.coverPhotoUrl) summary.coverPhotoUrl = items.find((i) => i.category_id && ids.has(i.category_id))?.photoUrl ?? null;
   return summary;

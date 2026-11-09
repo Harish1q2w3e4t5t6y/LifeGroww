@@ -1,12 +1,12 @@
 // Only visible when printing (or "Save as PDF"): every item with its photo.
-import { stockLevel, stockLevelLabel, visibleItems } from "../lib/logic";
+import { hasSizes, itemLevel, itemTotal, sortedVariants, stockLevelLabel, visibleItems } from "../lib/logic";
 import type { StockItemWithPhoto } from "../lib/api";
 
 export function PrintList({ items, typeLabel }: { items: StockItemWithPhoto[]; typeLabel: (item: StockItemWithPhoto) => string }) {
   const sorted = visibleItems(items, "", "all").sort((a, b) => typeLabel(a).localeCompare(typeLabel(b)));
   return (
     <div className="hidden p-6 text-black print:block">
-      <h1 className="text-2xl font-bold">Home Stock</h1>
+      <h1 className="text-2xl font-bold">Arumugam Stock</h1>
       <p className="mb-4 text-sm">{new Date().toLocaleString()}</p>
       <table className="w-full border-collapse text-left">
         <thead>
@@ -26,9 +26,16 @@ export function PrintList({ items, typeLabel }: { items: StockItemWithPhoto[]; t
               <td className="py-2 pr-3 font-semibold">
                 {it.name}
                 {(it.size || it.color) && <div className="text-xs font-normal">{[it.size, it.color].filter(Boolean).join(" · ")}</div>}
+                {hasSizes(it) && (
+                  <div className="text-sm font-normal">
+                    {sortedVariants(it)
+                      .map((v) => `${v.label}: ${v.quantity}`)
+                      .join("   ")}
+                  </div>
+                )}
               </td>
-              <td className="py-2 pr-3 text-right text-xl font-bold">{it.quantity}</td>
-              <td className="py-2">{stockLevelLabel(stockLevel(it.quantity))}</td>
+              <td className="py-2 pr-3 text-right text-xl font-bold">{itemTotal(it)}</td>
+              <td className="py-2">{stockLevelLabel(itemLevel(it))}</td>
             </tr>
           ))}
         </tbody>

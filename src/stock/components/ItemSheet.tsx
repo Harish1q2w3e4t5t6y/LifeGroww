@@ -2,9 +2,11 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Camera, ChevronDown, ChevronRight, FolderTree, ImagePlus, Loader2, Minus, Plus, Trash2, X } from "lucide-react";
-import { addItem, deleteItem, updateItem, type StockItemWithPhoto } from "../lib/api";
+import { addItem, deleteItem, updateItem, type SizeDraft, type StockItemWithPhoto } from "../lib/api";
+import { badSizeRows, sortedVariants } from "../lib/logic";
 import { categoryPathLabel, type Category, type CategoryIndex } from "../lib/tree";
 import { TypePicker } from "./TypePicker";
+import { SizesEditor } from "./SizesEditor";
 
 interface Props {
   item: StockItemWithPhoto | null; // null = add new
@@ -14,11 +16,12 @@ interface Props {
   onCreateCategory: (name: string, parentId: string | null) => Promise<Category>;
   onClose: () => void;
   onSaved: () => void;
+  onViewPhoto: (src: string, title: string) => void;
 }
 
 const priceText = (p: StockItemWithPhoto["price"]) => (p === null || p === undefined || p === "" ? "" : String(Number(p)));
 
-export function ItemSheet({ item, idx, typeRequired, defaultCategoryId, onCreateCategory, onClose, onSaved }: Props) {
+export function ItemSheet({ item, idx, typeRequired, defaultCategoryId, onCreateCategory, onClose, onSaved, onViewPhoto }: Props) {
   const [name, setName] = useState(item?.name ?? "");
   const [quantity, setQuantity] = useState(item?.quantity ?? 1);
   const [categoryId, setCategoryId] = useState<string | null>(
@@ -26,10 +29,12 @@ export function ItemSheet({ item, idx, typeRequired, defaultCategoryId, onCreate
   );
   const [pickingType, setPickingType] = useState(false);
   const [price, setPrice] = useState(priceText(item?.price));
-  const [size, setSize] = useState(item?.size ?? "");
+  const [sizes, setSizes] = useState<SizeDraft[]>(() =>
+    item ? sortedVariants(item).map((v) => ({ id: v.id, label: v.label, quantity: v.quantity })) : [],
+  );
   const [color, setColor] = useState(item?.color ?? "");
   const [notes, setNotes] = useState(item?.notes ?? "");
-  const hasDetails = !!(item && (priceText(item.price) || item.size || item.color || item.notes));
+  const hasDetails = !!(item && (priceText(item.price) || item.color || item.notes));
   const [showDetails, setShowDetails] = useState(hasDetails);
   const [photo, setPhoto] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(item?.photoUrl ?? null);
@@ -63,15 +68,18 @@ export function ItemSheet({ item, idx, typeRequired, defaultCategoryId, onCreate
   const typeMissing = typeRequired && !categoryId;
   const priceValue = price.trim() === "" ? null : Number(price.replace(",", "."));
   const priceInvalid = priceValue !== null && (Number.isNaN(priceValue) || priceValue < 0);
-  const canSave = name.trim().length > 0 && (item ? true : !!photo) && !typeMissing && !priceInvalid && busy === null;
+  const badSizes = badSizeRows(sizes);
+  const canSave =
+    name.trim().length > 0 && (item ? true : !!photo) && !typeMissing && !priceInvalid && badSizes.size === 0 && busy === null;
 
   const save = async () => {
     if (!item && !photo) return void toast.error("Please add a photo.");
     if (typeMissing) return void toast.error("Please choose a type.");
     if (!name.trim()) return void toast.error("Please type a name.");
     if (priceInvalid) return void toast.error("Price must be a number.");
+    if (badSizes.size) return void toast.error("Each size needs a different name.");
     setBusy("save");
-    const details = { category_id: categoryId, price: priceValue, size, color, notes };
+    const details = { category_id: categoryId, price: priceValue, color, notes, sizes };
     try {
       if (item) await updateItem(item, { name, quantity, photo, ...details });
       else await addItem({ name, quantity, photo: photo!, ...details });
@@ -135,7 +143,13 @@ export function ItemSheet({ item, idx, typeRequired, defaultCategoryId, onCreate
             <div className="mb-5">
               {preview ? (
                 <div className="relative">
-                  <img src={preview} alt="" className="aspect-square w-full rounded-3xl object-cover" />
+                  <button
+                    aria-label="See full photo"
+                    onClick={() => onViewPhoto(preview, name || "Photo")}
+                    className="block w-full"
+                  >
+                    <img src={preview} alt="" className="aspect-square w-full rounded-3xl object-cover" />
+                  </button>
                   <div className="absolute bottom-3 left-3 right-3 grid grid-cols-2 gap-2">
                     <button onClick={() => cameraInput.current?.click()} className="flex items-center justify-center gap-2 rounded-xl bg-black/60 py-3 font-semibold text-white backdrop-blur">
                       <Camera className="h-5 w-5" /> New photo
@@ -198,33 +212,47 @@ export function ItemSheet({ item, idx, typeRequired, defaultCategoryId, onCreate
               />
             </label>
 
-            {/* Quantity */}
-            <div className="mb-6">
-              <span className="text-sm font-semibold text-stone-600">How many?</span>
-              <div className="mt-2 flex items-center justify-between rounded-2xl bg-stone-100 p-2">
-                <button
-                  aria-label="One less"
-                  onClick={() => setQuantity((q) => Math.max(0, q - 1))}
-                  className="grid h-16 w-16 place-items-center rounded-2xl bg-white text-red-700 shadow-sm active:scale-95"
-                >
-                  <Minus className="h-9 w-9" strokeWidth={3} />
-                </button>
-                <input
-                  aria-label="Quantity"
-                  inputMode="numeric"
-                  value={quantity}
-                  onChange={(e) => setQuantity(Math.max(0, Math.min(99999, Number(e.target.value.replace(/\D/g, "")) || 0)))}
-                  className="w-24 bg-transparent text-center text-5xl font-extrabold tabular-nums outline-none"
-                />
-                <button
-                  aria-label="One more"
-                  onClick={() => setQuantity((q) => Math.min(99999, q + 1))}
-                  className="grid h-16 w-16 place-items-center rounded-2xl bg-white text-teal-800 shadow-sm active:scale-95"
-                >
-                  <Plus className="h-9 w-9" strokeWidth={3} />
-                </button>
+            {/* Sizes table, or a single count for products without sizes */}
+            {sizes.length > 0 ? (
+              <div className="mb-6">
+                <SizesEditor sizes={sizes} onChange={setSizes} badRows={badSizes} />
               </div>
-            </div>
+            ) : (
+              <div className="mb-6">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-stone-600">How many?</span>
+                  <button
+                    onClick={() => setSizes([{ label: "", quantity: quantity || 1 }])}
+                    className="flex items-center gap-1 rounded-xl px-2 py-1 text-sm font-semibold text-teal-700 hover:bg-teal-50"
+                  >
+                    <Plus className="h-4 w-4" /> Add sizes (S, M, L…)
+                  </button>
+                </div>
+                <div className="mt-2 flex items-center justify-between rounded-2xl bg-stone-100 p-2">
+                  <button
+                    aria-label="One less"
+                    onClick={() => setQuantity((q) => Math.max(0, q - 1))}
+                    className="grid h-16 w-16 place-items-center rounded-2xl bg-white text-red-700 shadow-sm active:scale-95"
+                  >
+                    <Minus className="h-9 w-9" strokeWidth={3} />
+                  </button>
+                  <input
+                    aria-label="Quantity"
+                    inputMode="numeric"
+                    value={quantity}
+                    onChange={(e) => setQuantity(Math.max(0, Math.min(99999, Number(e.target.value.replace(/\D/g, "")) || 0)))}
+                    className="w-24 bg-transparent text-center text-5xl font-extrabold tabular-nums outline-none"
+                  />
+                  <button
+                    aria-label="One more"
+                    onClick={() => setQuantity((q) => Math.min(99999, q + 1))}
+                    className="grid h-16 w-16 place-items-center rounded-2xl bg-white text-teal-800 shadow-sm active:scale-95"
+                  >
+                    <Plus className="h-9 w-9" strokeWidth={3} />
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Optional details, hidden until asked for */}
             <div className="mb-6">
@@ -249,17 +277,7 @@ export function ItemSheet({ item, idx, typeRequired, defaultCategoryId, onCreate
                       }`}
                     />
                   </label>
-                  <label className="block">
-                    <span className="text-sm font-semibold text-stone-600">Size</span>
-                    <input
-                      value={size}
-                      maxLength={40}
-                      onChange={(e) => setSize(e.target.value)}
-                      placeholder="e.g. M, 32"
-                      className="mt-1 w-full rounded-xl border border-stone-300 px-4 py-3 text-lg outline-none focus:border-teal-700"
-                    />
-                  </label>
-                  <label className="block">
+                  <label className="col-span-2 block">
                     <span className="text-sm font-semibold text-stone-600">Colour</span>
                     <input
                       value={color}

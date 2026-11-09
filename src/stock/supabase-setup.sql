@@ -1,5 +1,5 @@
 -- ============================================================
--- Home Stock (experimental) — Supabase setup. NO LOGIN: anyone who opens
+-- Arumugam Stock (experimental) — Supabase setup. NO LOGIN: anyone who opens
 -- /stock can see and change the stock list (by choice: family use only).
 -- Run in Supabase Dashboard → SQL Editor → New Query → paste → Run.
 -- Safe to run again (also upgrades the earlier login-based version).
@@ -52,6 +52,39 @@ alter table public.stock_items add column if not exists size   text check (size 
 alter table public.stock_items add column if not exists color  text check (color is null or char_length(color) <= 40);
 alter table public.stock_items add column if not exists notes  text check (notes is null or char_length(notes) <= 1000);
 create index if not exists stock_items_category_idx on public.stock_items (category_id);
+
+-- Sizes inside a product (e.g. Sigma shirt: L 12, M 400, S 4, XL 42).
+-- Sizes are typed per product; a product with no sizes uses stock_items.quantity.
+create table if not exists public.stock_variants (
+  id          uuid primary key default gen_random_uuid(),
+  item_id     uuid not null references public.stock_items(id) on delete cascade,
+  label       text not null check (char_length(btrim(label)) between 1 and 40),
+  quantity    integer not null default 0 check (quantity >= 0),
+  sort        integer not null default 0,
+  created_at  timestamptz not null default now(),
+  unique (item_id, label)
+);
+create index if not exists stock_variants_item_idx on public.stock_variants (item_id);
+
+alter table public.stock_variants enable row level security;
+drop policy if exists "stock_variants_public" on public.stock_variants;
+create policy "stock_variants_public" on public.stock_variants
+  for all to anon, authenticated using (true) with check (true);
+grant select, insert, update, delete on public.stock_variants to anon, authenticated;
+
+-- + / − on one size: same one-step, never-below-zero rule as items.
+create or replace function public.stock_adjust_variant(variant_id uuid, delta integer)
+returns public.stock_variants
+language sql
+security invoker
+set search_path = public
+as $$
+  update public.stock_variants
+     set quantity = greatest(quantity + delta, 0)
+   where id = variant_id
+  returning *;
+$$;
+grant execute on function public.stock_adjust_variant(uuid, integer) to anon, authenticated;
 
 -- Family-wide settings (shared by every phone), e.g. "type is required".
 create table if not exists public.stock_settings (

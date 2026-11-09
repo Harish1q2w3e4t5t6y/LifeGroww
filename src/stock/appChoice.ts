@@ -1,5 +1,5 @@
-// Decides which app a visit opens: Lifegrow, Home Stock, or (on phones) the
-// "which app?" choice screen. Part of the Home Stock experiment; see REMOVE.md.
+// Decides which app a visit opens: Lifegrow, Arumugam Stock, or (on phones) the
+// "which app?" choice screen. Part of the Arumugam Stock experiment; see REMOVE.md.
 
 export type AppPick = "lifegrow" | "stock" | "ask";
 type Choice = "lifegrow" | "stock";

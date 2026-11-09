@@ -1,4 +1,4 @@
-# Home Stock (experimental)
+# Arumugam Stock (experimental)
 
 A simple family stock tracker at **`/stock`**, with **no login**. Every item
 has a photo, a name, a count and a **type** from a tree you build (Shirt →
@@ -8,8 +8,14 @@ page, search, remove, and export (Excel/CSV or print/PDF with photos).
 
 ## Types and details
 
-* **By type** tab: tap a type to see what's inside it (sub-types and items),
-  with totals for everything inside. The breadcrumb at the top jumps back up.
+* **By type** tab opens on a **tree** of the whole stock (types → sub-types →
+  products → sizes) with a count on every line. ⊟ / ⊞ opens or closes a
+  branch, and **Open all / Close all** does every branch at once. Tapping a
+  type's name opens its page; tapping a product or size opens its size table
+  (or its edit screen if it has no sizes). A red / orange dot on a type means
+  something inside is out / low.
+* A type's page shows its sub-types and items with photos, and totals for
+  everything inside. The breadcrumb at the top ("All types") goes back to the tree.
   **New type** adds one at the level you're on. The ✎ pencil renames a type,
   or deletes it once it's empty (no items, no sub-types).
 * **Add item** asks for a **type** by stepping down the tree. Opened from inside
@@ -17,9 +23,30 @@ page, search, remove, and export (Excel/CSV or print/PDF with photos).
   right in the picker.
 * **Settings** (⋮ menu) → **Type must be chosen**: on by default. Turn it off
   to allow items without a type. It's shared by every family phone.
-* **More details (optional)** on an item: Price (₹), Size, Colour, Notes.
-  Hidden until tapped, so adding an item stays simple. Size and colour show
-  under the item's name, and all details go into the Excel export.
+* **More details (optional)** on an item: Price (₹), Colour, Notes. Hidden
+  until tapped, so adding an item stays simple.
+
+## Seeing a photo in full
+
+The ⤢ button on a product's photo (or tapping the photo in its size table, its
+edit screen or the tree) opens it full screen, showing the whole picture
+uncropped. Zoom by pinching with two fingers, double-tapping, or the + / −
+buttons, and drag to move around when zoomed in. ✕, the phone's Back button,
+or tapping the dark edge closes it.
+
+## Sizes inside a product
+
+A product can have a **size table** that you type yourself, e.g. *Sigma shirt*:
+L 12 · M 400 · S 4 · XL 42. Sizes are optional; a product without sizes keeps
+one big − / + count.
+
+* **Add item** → **Add sizes (S, M, L…)** turns the single count into a table.
+  **Add size** adds a row, ✕ removes one. Each size name must be different.
+* On the main screen, a product with sizes shows every size and its count
+  (red = none, orange = low) plus the total. Tapping it opens the size table
+  with big − / + on every size.
+* Dashboard **Low / Out** count each size separately, so "M is out" shows up.
+  Type totals and the Excel export (one row per size) include the sizes.
 
 It lives inside the Lifegrow website only to try the idea out. It is separate
 from Lifegrow: its own code folder, its own database table and photo storage,
@@ -30,14 +57,14 @@ To take it out again, follow [REMOVE.md](./REMOVE.md).
 
 * **On a phone**, opening the website first shows **"Which app?"** with two
   big buttons, before any Lifegrow login:
-  * **Home Stock** opens the stock list straight away (no login).
+  * **Arumugam Stock** opens the stock list straight away (no login).
   * **Lifegrow** goes to the normal Lifegrow login, as before.
 
   "Always open this app on this phone" (ticked by default) remembers the
-  choice, so your parents' phones go straight to Home Stock every time. Home
+  choice, so your parents' phones go straight to Arumugam Stock every time. Home
   Stock's ⋮ menu → **Switch app** shows the choice screen again.
 * **On a computer**, nothing changes: the website opens Lifegrow.
-* **`/stock`** always opens Home Stock, on any device.
+* **`/stock`** always opens Arumugam Stock, on any device.
 * ChatGPT sign-in (`/oauth/consent`) and Lifegrow's own login links are never
   interrupted by the choice screen.
 
@@ -52,7 +79,7 @@ login.
 
 1. **Supabase → SQL Editor:** paste and run [`supabase-setup.sql`](./supabase-setup.sql).
    It's safe to run again, and it also upgrades the earlier login-based version.
-2. **Phones:** open the website. Tap **Home Stock** and keep "Always open"
+2. **Phones:** open the website. Tap **Arumugam Stock** and keep "Always open"
    ticked. To get its own icon, add it to the home screen:
    * **Android (Chrome):** ⋮ → **Add to Home screen**
    * **iPhone (Safari):** Share → **Add to Home Screen**
@@ -74,11 +101,11 @@ login.
 
 | Path | What |
 |---|---|
-| `src/stock/StockApp.tsx` | Home Stock entry point, home-screen name/icon |
+| `src/stock/StockApp.tsx` | Arumugam Stock entry point, home-screen name/icon |
 | `src/stock/AppChooser.tsx`, `appChoice.ts` | The phone "Which app?" screen and its rules |
-| `src/stock/components/*` | Screens: list, by-type, add/change, type picker, settings, print view |
+| `src/stock/components/*` | Screens: list, tree, by-type, add/change, sizes table, type picker, settings, print view |
 | `src/stock/lib/*` | Supabase client (no session), data calls, pure logic, types tree (`tree.ts`) |
 | `src/stock/stock.test.ts` | Tests |
 | `src/stock/supabase-*.sql` | Database setup / removal |
 | `public/stock/*` | Phone icon and manifest |
-| `src/main.tsx` | The marked lines that pick Lifegrow / Home Stock / chooser |
+| `src/main.tsx` | The marked lines that pick Lifegrow / Arumugam Stock / chooser |

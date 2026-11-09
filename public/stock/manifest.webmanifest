@@ -1,6 +1,6 @@
 {
-  "name": "Home Stock",
-  "short_name": "Home Stock",
+  "name": "Arumugam Stock",
+  "short_name": "Arumugam",
   "description": "What we have at home, with photos.",
   "start_url": "/stock",
   "scope": "/stock",

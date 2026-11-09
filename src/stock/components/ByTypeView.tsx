@@ -5,6 +5,7 @@ import type { StockItemWithPhoto } from "../lib/api";
 import { visibleItems } from "../lib/logic";
 import { branchSummary, categoryPath, childrenOf, itemsDirectlyIn, type Category, type CategoryIndex } from "../lib/tree";
 import { ItemCard } from "./ItemCard";
+import { TreeView } from "./TreeView";
 
 interface Props {
   idx: CategoryIndex;
@@ -12,17 +13,34 @@ interface Props {
   at: string | null;
   setAt: (id: string | null) => void;
   onOpenItem: (item: StockItemWithPhoto) => void;
+  onOpenSizes: (item: StockItemWithPhoto) => void;
+  onViewPhoto: (src: string, title: string) => void;
   onTap: (item: StockItemWithPhoto, delta: number) => void;
   onNewType: (parentId: string | null) => void;
   onEditType: (category: Category) => void;
 }
 
-export function ByTypeView({ idx, items, at, setAt, onOpenItem, onTap, onNewType, onEditType }: Props) {
+export function ByTypeView({ idx, items, at, setAt, onOpenItem, onOpenSizes, onViewPhoto, onTap, onNewType, onEditType }: Props) {
   const path = categoryPath(idx, at);
   const here = path[path.length - 1] ?? null;
   const subs = childrenOf(idx, at);
   const direct = visibleItems(itemsDirectlyIn(idx, at, items), "", "all");
   const hereSummary = here ? branchSummary(idx, here.id, items) : null;
+
+  // Top level: the whole stock as an open/close tree. Tapping a type opens its page below.
+  if (at === null) {
+    return (
+      <div>
+        <TreeView idx={idx} items={items} onOpenType={setAt} onOpenItem={onOpenItem} onOpenSizes={onOpenSizes} onViewPhoto={onViewPhoto} />
+        <button
+          onClick={() => onNewType(null)}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-stone-300 py-4 font-semibold text-stone-600"
+        >
+          <FolderPlus className="h-6 w-6" /> New type
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -116,7 +134,7 @@ export function ByTypeView({ idx, items, at, setAt, onOpenItem, onTap, onNewType
           </h3>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {direct.map((item) => (
-              <ItemCard key={item.id} item={item} onOpen={onOpenItem} onTap={onTap} />
+              <ItemCard key={item.id} item={item} onOpen={onOpenItem} onOpenSizes={onOpenSizes} onTap={onTap} onViewPhoto={onViewPhoto} />
             ))}
           </div>
         </>
